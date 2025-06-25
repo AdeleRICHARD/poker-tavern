@@ -36,6 +36,8 @@ export interface GameSession {
   currentStoryIndex: number;
   stories: Story[];
   revealVotes: boolean;
+  persistentVotes: { [storyId: string]: { [playerId: string]: string } };
+  requiredPlayers: string[]; // List of player IDs who need to vote
 }
 
 export const useGameStore = defineStore("game", () => {
@@ -49,6 +51,8 @@ export const useGameStore = defineStore("game", () => {
     "waiting",
   );
   const isConnected = ref(false);
+  const localPlayerId = ref<string | null>(null);
+  const localStoryIndex = ref(0); // Independent story navigation
 
   // Mock data for testing
   const availableCharacters = ref([
@@ -79,17 +83,45 @@ export const useGameStore = defineStore("game", () => {
   const currentStory = computed(() => {
     if (!currentSession.value || !currentSession.value.stories.length)
       return null;
-    return (
-      currentSession.value.stories[currentSession.value.currentStoryIndex] ||
-      null
-    );
+    return currentSession.value.stories[localStoryIndex.value] || null;
   });
 
   const allPlayersVoted = computed(() => {
+    if (!currentSession.value || !currentStory.value) return false;
+
+    const currentStoryVotes =
+      currentSession.value.persistentVotes[currentStory.value.id] || {};
+    const requiredPlayers = currentSession.value.requiredPlayers;
+
     return (
-      players.value.length > 0 &&
-      players.value.every((player) => player.hasVoted)
+      requiredPlayers.length > 0 &&
+      requiredPlayers.every((playerId) => currentStoryVotes[playerId])
     );
+  });
+
+  const isCurrentStoryRevealed = computed(() => {
+    if (!currentStory.value || !currentSession.value) return false;
+    const storyId = currentStory.value.id;
+    return (
+      currentSession.value.persistentVotes[storyId] && allPlayersVoted.value
+    );
+  });
+
+  const canNavigateNext = computed(() => {
+    if (!currentSession.value) return false;
+    return localStoryIndex.value < currentSession.value.stories.length - 1;
+  });
+
+  const canNavigatePrev = computed(() => {
+    return localStoryIndex.value > 0;
+  });
+
+  const currentStoryProgress = computed(() => {
+    if (!currentSession.value) return { current: 0, total: 0 };
+    return {
+      current: localStoryIndex.value + 1,
+      total: currentSession.value.stories.length,
+    };
   });
 
   const canReveal = computed(() => {
@@ -97,22 +129,33 @@ export const useGameStore = defineStore("game", () => {
   });
 
   const votingResults = computed(() => {
-    if (gamePhase.value !== "revealed") return [];
+    if (
+      gamePhase.value !== "revealed" ||
+      !currentStory.value ||
+      !currentSession.value
+    )
+      return [];
 
-    const votes = players.value
-      .filter((player) => player.vote)
-      .map((player) => ({
-        player: player.name,
-        vote: player.vote!,
-        character: player.character,
-      }));
+    const currentStoryVotes =
+      currentSession.value.persistentVotes[currentStory.value.id] || {};
+    const playerMap = new Map(players.value.map((p) => [p.id, p]));
 
-    return votes;
+    return Object.entries(currentStoryVotes).map(([playerId, vote]) => {
+      const player = playerMap.get(playerId);
+      return {
+        player: player?.name || playerId,
+        vote: vote,
+        character: player?.character || "unknown",
+      };
+    });
   });
 
   const averageVote = computed(() => {
-    const numericVotes = players.value
-      .map((player) => player.vote)
+    if (!currentStory.value || !currentSession.value) return null;
+
+    const currentStoryVotes =
+      currentSession.value.persistentVotes[currentStory.value.id] || {};
+    const numericVotes = Object.values(currentStoryVotes)
       .filter((vote) => vote && !isNaN(Number(vote)))
       .map(Number);
 
@@ -152,17 +195,21 @@ export const useGameStore = defineStore("game", () => {
         },
       ],
       revealVotes: false,
+      persistentVotes: {},
+      requiredPlayers: ["player-1", "player-2", "player-3"], // Simulated team
     };
 
-    // Test players (already voted to enable reveal testing)
+    // Load persistent state from localStorage
+    loadPersistedState();
+
+    // Test players (no votes initially, will be loaded from persistence)
     players.value = [
       {
         id: "player-1",
         name: "Alice",
         character: "mage",
         emoji: "🧙‍♀️",
-        hasVoted: true,
-        vote: "5",
+        hasVoted: false,
         position: { x: 400, y: 200 },
         isReady: true,
       },
@@ -171,12 +218,23 @@ export const useGameStore = defineStore("game", () => {
         name: "Bob",
         character: "paladin",
         emoji: "⚔️",
-        hasVoted: true,
-        vote: "8",
+        hasVoted: false,
         position: { x: 600, y: 300 },
         isReady: true,
       },
+      {
+        id: "player-3",
+        name: "Charlie",
+        character: "rogue",
+        emoji: "🗡️",
+        hasVoted: false,
+        position: { x: 200, y: 400 },
+        isReady: true,
+      },
     ];
+
+    // Update player voted status based on persistent votes
+    updatePlayerVotedStatus();
 
     // Test chat messages
     chatMessages.value = [
@@ -197,6 +255,14 @@ export const useGameStore = defineStore("game", () => {
     ];
 
     gamePhase.value = "voting";
+
+    // Set initial story to first one
+    localStoryIndex.value = 0;
+
+    // Check if all players have already voted for current story
+    if (allPlayersVoted.value) {
+      gamePhase.value = "revealed";
+    }
   }
 
   function selectCharacter(characterId: string) {
@@ -205,12 +271,18 @@ export const useGameStore = defineStore("game", () => {
     );
     if (!character) return;
 
+    // Generate or retrieve persistent player ID
+    if (!localPlayerId.value) {
+      localPlayerId.value = `player-${Date.now()}`;
+      localStorage.setItem("localPlayerId", localPlayerId.value);
+    }
+
     currentPlayer.value = {
-      id: `player-${Date.now()}`,
+      id: localPlayerId.value,
       name: "You", // To be replaced with real name
       character: character.id,
       emoji: character.emoji,
-      hasVoted: false,
+      hasVoted: hasCurrentPlayerVoted(),
       position: { x: 400, y: 400 }, // Default position
       isReady: true,
     };
@@ -222,8 +294,24 @@ export const useGameStore = defineStore("game", () => {
   }
 
   function submitVote() {
-    if (!selectedCard.value || !currentPlayer.value) return;
+    if (
+      !selectedCard.value ||
+      !currentPlayer.value ||
+      !currentStory.value ||
+      !currentSession.value
+    )
+      return;
 
+    // Store vote persistently
+    if (!currentSession.value.persistentVotes[currentStory.value.id]) {
+      currentSession.value.persistentVotes[currentStory.value.id] = {};
+    }
+
+    currentSession.value.persistentVotes[currentStory.value.id][
+      currentPlayer.value.id
+    ] = selectedCard.value;
+
+    // Update local state
     currentPlayer.value.vote = selectedCard.value;
     currentPlayer.value.hasVoted = true;
 
@@ -237,11 +325,26 @@ export const useGameStore = defineStore("game", () => {
       players.value.push({ ...currentPlayer.value });
     }
 
+    // Persist to localStorage
+    savePersistedState();
+
     addChatMessage({
       author: "System",
       text: `${currentPlayer.value.name} voted`,
       type: "system",
     });
+
+    // Auto-reveal if all players have voted
+    if (allPlayersVoted.value) {
+      setTimeout(() => {
+        revealVotes();
+        addChatMessage({
+          author: "System",
+          text: "All players have voted! Auto-revealing votes.",
+          type: "system",
+        });
+      }, 1000);
+    }
   }
 
   function revealVotes() {
@@ -259,26 +362,59 @@ export const useGameStore = defineStore("game", () => {
     });
   }
 
-  function startNextStory() {
-    if (!currentSession.value) return;
+  function navigateToStory(storyIndex: number) {
+    if (
+      !currentSession.value ||
+      storyIndex < 0 ||
+      storyIndex >= currentSession.value.stories.length
+    ) {
+      return;
+    }
 
-    // Reset votes
-    players.value.forEach((player) => {
-      player.hasVoted = false;
-      player.vote = undefined;
-    });
+    localStoryIndex.value = storyIndex;
+
+    // Reset local UI state
     selectedCard.value = null;
-
-    // Next story
-    currentSession.value.currentStoryIndex++;
-    currentSession.value.revealVotes = false;
     gamePhase.value = "voting";
+
+    // Load existing vote for this story if any
+    if (currentPlayer.value && hasCurrentPlayerVoted()) {
+      currentPlayer.value.hasVoted = true;
+      const currentStoryVotes =
+        currentSession.value.persistentVotes[currentStory.value?.id || ""] ||
+        {};
+      currentPlayer.value.vote = currentStoryVotes[currentPlayer.value.id];
+      selectedCard.value = currentPlayer.value.vote || null;
+    } else if (currentPlayer.value) {
+      currentPlayer.value.hasVoted = false;
+      currentPlayer.value.vote = undefined;
+    }
+
+    // Update all players' voted status for this story
+    updatePlayerVotedStatus();
+
+    // Check if all players have already voted for this story
+    if (allPlayersVoted.value) {
+      gamePhase.value = "revealed";
+    }
 
     addChatMessage({
       author: "System",
-      text: `New story: ${currentStory.value?.title}`,
+      text: `Navigated to: ${currentStory.value?.title}`,
       type: "system",
     });
+  }
+
+  function nextStory() {
+    if (canNavigateNext.value) {
+      navigateToStory(localStoryIndex.value + 1);
+    }
+  }
+
+  function previousStory() {
+    if (canNavigatePrev.value) {
+      navigateToStory(localStoryIndex.value - 1);
+    }
   }
 
   function addChatMessage(message: Omit<ChatMessage, "id" | "timestamp">) {
@@ -306,6 +442,61 @@ export const useGameStore = defineStore("game", () => {
     selectedCard.value = null;
     gamePhase.value = "waiting";
     currentPlayer.value = null;
+  }
+
+  // Persistence functions
+  function savePersistedState() {
+    if (!currentSession.value) return;
+
+    const persistedData = {
+      sessionId: currentSession.value.id,
+      persistentVotes: currentSession.value.persistentVotes,
+      localPlayerId: localPlayerId.value,
+    };
+
+    localStorage.setItem("planningPokerState", JSON.stringify(persistedData));
+  }
+
+  function loadPersistedState() {
+    const savedData = localStorage.getItem("planningPokerState");
+    if (savedData && currentSession.value) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed.sessionId === currentSession.value.id) {
+          currentSession.value.persistentVotes = parsed.persistentVotes || {};
+          localPlayerId.value = parsed.localPlayerId;
+        }
+      } catch (error) {
+        console.warn("Failed to load persisted state:", error);
+      }
+    }
+
+    // Load local player ID
+    const savedPlayerId = localStorage.getItem("localPlayerId");
+    if (savedPlayerId) {
+      localPlayerId.value = savedPlayerId;
+    }
+  }
+
+  function hasCurrentPlayerVoted(): boolean {
+    if (!currentPlayer.value || !currentStory.value || !currentSession.value)
+      return false;
+
+    const currentStoryVotes =
+      currentSession.value.persistentVotes[currentStory.value.id] || {};
+    return !!currentStoryVotes[currentPlayer.value.id];
+  }
+
+  function updatePlayerVotedStatus() {
+    if (!currentStory.value || !currentSession.value) return;
+
+    const currentStoryVotes =
+      currentSession.value.persistentVotes[currentStory.value.id] || {};
+
+    players.value.forEach((player) => {
+      player.hasVoted = !!currentStoryVotes[player.id];
+      player.vote = currentStoryVotes[player.id];
+    });
   }
 
   // WebSocket connection (mocked for now)
@@ -336,6 +527,7 @@ export const useGameStore = defineStore("game", () => {
     isConnected,
     availableCharacters,
     pokerCards,
+    localStoryIndex,
 
     // Computed
     currentStory,
@@ -343,6 +535,10 @@ export const useGameStore = defineStore("game", () => {
     canReveal,
     votingResults,
     averageVote,
+    isCurrentStoryRevealed,
+    canNavigateNext,
+    canNavigatePrev,
+    currentStoryProgress,
 
     // Actions
     initMockData,
@@ -350,11 +546,17 @@ export const useGameStore = defineStore("game", () => {
     selectCard,
     submitVote,
     revealVotes,
-    startNextStory,
+    navigateToStory,
+    nextStory,
+    previousStory,
     addChatMessage,
     sendChatMessage,
     resetGame,
     connectToSession,
     disconnectFromSession,
+    savePersistedState,
+    loadPersistedState,
+    hasCurrentPlayerVoted,
+    updatePlayerVotedStatus,
   };
 });
