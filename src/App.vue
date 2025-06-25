@@ -15,6 +15,7 @@
 import TavernView from "./views/TavernView.vue";
 </script>
 
+<!-- Global styles (not scoped) -->
 <style>
 /* WoW-inspired styles */
 @import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap");
@@ -32,41 +33,7 @@ body {
     min-height: 100vh;
 }
 
-#app {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-}
-
-.app-header {
-    background: linear-gradient(90deg, #8b4513 0%, #a0522d 50%, #8b4513 100%);
-    padding: 1rem 2rem;
-    text-align: center;
-    border-bottom: 3px solid #daa520;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-.app-header h1 {
-    font-size: 2.5rem;
-    color: #ffd700;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-    margin-bottom: 0.5rem;
-}
-
-.app-header p {
-    font-size: 1.1rem;
-    color: #f4f4f4;
-    font-style: italic;
-}
-
-.app-main {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 2rem;
-}
-
+/* Global utility classes */
 .wow-button {
     background: linear-gradient(145deg, #8b4513, #a0522d);
     border: 2px solid #daa520;
@@ -106,5 +73,43 @@ body {
     background: linear-gradient(45deg, #daa520, #ffd700, #daa520);
     border-radius: 15px;
     z-index: -1;
+}
+</style>
+
+<!-- Component-specific styles (scoped) -->
+<style scoped>
+#app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.app-header {
+    background: linear-gradient(90deg, #8b4513 0%, #a0522d 50%, #8b4513 100%);
+    padding: 1rem 2rem;
+    text-align: center;
+    border-bottom: 3px solid #daa520;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.app-header h1 {
+    font-size: 2.5rem;
+    color: #ffd700;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+    margin-bottom: 0.5rem;
+}
+
+.app-header p {
+    font-size: 1.1rem;
+    color: #f4f4f4;
+    font-style: italic;
+}
+
+.app-main {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
 }
 </style>
