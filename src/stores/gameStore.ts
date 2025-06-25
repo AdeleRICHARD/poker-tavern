@@ -86,7 +86,7 @@ export const useGameStore = defineStore("game", () => {
     return currentSession.value.stories[localStoryIndex.value] || null;
   });
 
-  const allPlayersVoted = computed(() => {
+  const allPlayersVotedCurrentStory = computed(() => {
     if (!currentSession.value || !currentStory.value) return false;
 
     const currentStoryVotes =
@@ -99,12 +99,21 @@ export const useGameStore = defineStore("game", () => {
     );
   });
 
+  const allStoriesVotedByEveryone = computed(() => {
+    if (!currentSession.value) return false;
+
+    const stories = currentSession.value.stories;
+    const requiredPlayers = currentSession.value.requiredPlayers;
+
+    return stories.every((story) => {
+      const storyVotes = currentSession.value!.persistentVotes[story.id] || {};
+      return requiredPlayers.every((playerId) => storyVotes[playerId]);
+    });
+  });
+
   const isCurrentStoryRevealed = computed(() => {
     if (!currentStory.value || !currentSession.value) return false;
-    const storyId = currentStory.value.id;
-    return (
-      currentSession.value.persistentVotes[storyId] && allPlayersVoted.value
-    );
+    return currentSession.value.revealVotes;
   });
 
   const canNavigateNext = computed(() => {
@@ -125,7 +134,7 @@ export const useGameStore = defineStore("game", () => {
   });
 
   const canReveal = computed(() => {
-    return gamePhase.value === "voting" && allPlayersVoted.value;
+    return gamePhase.value === "voting" && allStoriesVotedByEveryone.value;
   });
 
   const votingResults = computed(() => {
@@ -259,8 +268,8 @@ export const useGameStore = defineStore("game", () => {
     // Set initial story to first one
     localStoryIndex.value = 0;
 
-    // Check if all players have already voted for current story
-    if (allPlayersVoted.value) {
+    // Check if all stories are complete and should be revealed
+    if (allStoriesVotedByEveryone.value && currentSession.value.revealVotes) {
       gamePhase.value = "revealed";
     }
   }
@@ -333,18 +342,6 @@ export const useGameStore = defineStore("game", () => {
       text: `${currentPlayer.value.name} voted`,
       type: "system",
     });
-
-    // Auto-reveal if all players have voted
-    if (allPlayersVoted.value) {
-      setTimeout(() => {
-        revealVotes();
-        addChatMessage({
-          author: "System",
-          text: "All players have voted! Auto-revealing votes.",
-          type: "system",
-        });
-      }, 1000);
-    }
   }
 
   function revealVotes() {
@@ -357,7 +354,7 @@ export const useGameStore = defineStore("game", () => {
 
     addChatMessage({
       author: "System",
-      text: "Votes revealed!",
+      text: "All votes revealed for all stories!",
       type: "system",
     });
   }
@@ -393,8 +390,8 @@ export const useGameStore = defineStore("game", () => {
     // Update all players' voted status for this story
     updatePlayerVotedStatus();
 
-    // Check if all players have already voted for this story
-    if (allPlayersVoted.value) {
+    // Check if all stories are complete and should be revealed
+    if (allStoriesVotedByEveryone.value && currentSession.value.revealVotes) {
       gamePhase.value = "revealed";
     }
 
@@ -531,7 +528,8 @@ export const useGameStore = defineStore("game", () => {
 
     // Computed
     currentStory,
-    allPlayersVoted,
+    allPlayersVotedCurrentStory,
+    allStoriesVotedByEveryone,
     canReveal,
     votingResults,
     averageVote,

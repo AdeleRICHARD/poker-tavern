@@ -34,42 +34,34 @@
                     </p>
 
                     <div class="voting-status">
-                        <h4>🗳️ Voting Status</h4>
+                        <h4>🗳️ Global Voting Status</h4>
                         <div class="status-summary">
                             <span class="votes-count">
-                                {{ getVotedPlayersCount() }} /
-                                {{
-                                    gameStore.currentSession.requiredPlayers
-                                        .length
-                                }}
-                                voted
+                                {{ getTotalVotesCount() }} /
+                                {{ getTotalRequiredVotes() }}
+                                total votes
                             </span>
                             <div class="progress-bar">
                                 <div
                                     class="progress-fill"
                                     :style="{
-                                        width: getVotingProgress() + '%',
+                                        width: getGlobalVotingProgress() + '%',
                                     }"
                                 ></div>
                             </div>
                         </div>
 
-                        <div class="players-list">
+                        <div class="global-status">
                             <div
-                                v-for="playerId in gameStore.currentSession
-                                    .requiredPlayers"
-                                :key="playerId"
-                                class="player-item"
+                                v-if="gameStore.allStoriesVotedByEveryone"
+                                class="all-complete-notice"
                             >
-                                {{ getPlayerInfo(playerId).emoji }}
-                                {{ getPlayerInfo(playerId).name }}
-                                <span
-                                    v-if="hasPlayerVoted(playerId)"
-                                    class="voted-badge"
-                                    :title="getVoteTime(playerId)"
-                                    >✅</span
-                                >
-                                <span v-else class="waiting-badge">⏳</span>
+                                ✅ All stories voted by everyone!
+                            </div>
+                            <div v-else class="progress-notice">
+                                📋 {{ getCompletedStoriesCount() }} /
+                                {{ gameStore.currentSession?.stories.length }}
+                                stories complete
                             </div>
                         </div>
                     </div>
@@ -93,7 +85,9 @@
                                 ✅ Revealed
                             </span>
                             <span
-                                v-else-if="gameStore.allPlayersVoted"
+                                v-else-if="
+                                    gameStore.allPlayersVotedCurrentStory
+                                "
                                 class="status-badge ready"
                             >
                                 🎭 Ready to reveal
@@ -221,45 +215,26 @@
                 </div>
 
                 <div class="game-controls">
-                    <div
-                        v-if="gameStore.gamePhase === 'voting'"
-                        class="voting-info"
-                    >
-                        <div
-                            v-if="gameStore.allPlayersVoted"
-                            class="all-voted-notice"
-                        >
-                            <p>🎉 All players have voted!</p>
-                            <p class="auto-reveal-notice">
-                                Auto-revealing in a moment...
-                            </p>
-                        </div>
-                        <div v-else class="waiting-notice">
-                            <p>
-                                ⏳ Waiting for
-                                {{ getRemainingPlayersCount() }} more player(s)
-                            </p>
-                            <div class="pending-players">
-                                <span
-                                    v-for="playerId in getPendingPlayers()"
-                                    :key="playerId"
-                                    class="pending-player"
-                                >
-                                    {{ getPlayerInfo(playerId).name }}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
                     <button
                         v-if="
                             gameStore.gamePhase === 'voting' &&
-                            !gameStore.allPlayersVoted
+                            !gameStore.allStoriesVotedByEveryone
                         "
                         class="wow-button test-btn"
                         @click="makeOthersVote"
                     >
                         🤖 Make others vote (test)
+                    </button>
+
+                    <button
+                        v-if="
+                            gameStore.canReveal &&
+                            !gameStore.isCurrentStoryRevealed
+                        "
+                        class="wow-button reveal-btn"
+                        @click="revealAllVotes"
+                    >
+                        🎭 Reveal All Votes
                     </button>
 
                     <button
@@ -480,25 +455,7 @@ watch(
     () => gameStore.gamePhase,
     (newPhase) => {
         if (newPhase === "revealed") {
-            const votes: { [key: string]: string } = {};
-            gameStore.players.forEach((player) => {
-                if (player.vote) {
-                    votes[player.id] = player.vote;
-                }
-            });
-            gameManager.revealAllVotes(votes);
-        } else if (newPhase === "voting") {
-            gameManager.resetTable();
-        }
-    },
-);
-
-// Watch for auto-revelation when all players vote
-watch(
-    () => gameStore.allPlayersVoted,
-    (allVoted) => {
-        if (allVoted && gameStore.gamePhase === "voting") {
-            // Trigger reveal in Phaser when all players have voted
+            // Global reveal - show votes for all stories
             setTimeout(() => {
                 const votes: { [key: string]: string } = {};
                 if (gameStore.currentStory && gameStore.currentSession) {
@@ -514,6 +471,8 @@ watch(
                     gameManager.revealAllVotes(votes);
                 }
             }, 500);
+        } else if (newPhase === "voting") {
+            gameManager.resetTable();
         }
     },
 );
@@ -653,18 +612,28 @@ function makeOthersVote() {
 }
 
 // Helper functions for the new UI
-function getVotedPlayersCount(): number {
-    if (!gameStore.currentSession || !gameStore.currentStory) return 0;
-    const currentStoryVotes =
-        gameStore.currentSession.persistentVotes[gameStore.currentStory.id] ||
-        {};
-    return Object.keys(currentStoryVotes).length;
+function getTotalVotesCount(): number {
+    if (!gameStore.currentSession) return 0;
+    let totalVotes = 0;
+    gameStore.currentSession.stories.forEach((story) => {
+        const storyVotes =
+            gameStore.currentSession!.persistentVotes[story.id] || {};
+        totalVotes += Object.keys(storyVotes).length;
+    });
+    return totalVotes;
 }
 
-function getVotingProgress(): number {
+function getTotalRequiredVotes(): number {
     if (!gameStore.currentSession) return 0;
-    const total = gameStore.currentSession.requiredPlayers.length;
-    const voted = getVotedPlayersCount();
+    return (
+        gameStore.currentSession.stories.length *
+        gameStore.currentSession.requiredPlayers.length
+    );
+}
+
+function getGlobalVotingProgress(): number {
+    const total = getTotalRequiredVotes();
+    const voted = getTotalVotesCount();
     return total > 0 ? (voted / total) * 100 : 0;
 }
 
@@ -686,21 +655,9 @@ function getVoteTime(playerId: string): string {
     return "Voted recently";
 }
 
-function getRemainingPlayersCount(): number {
-    if (!gameStore.currentSession) return 0;
-    return (
-        gameStore.currentSession.requiredPlayers.length - getVotedPlayersCount()
-    );
-}
-
-function getPendingPlayers(): string[] {
-    if (!gameStore.currentSession || !gameStore.currentStory) return [];
-    const currentStoryVotes =
-        gameStore.currentSession.persistentVotes[gameStore.currentStory.id] ||
-        {};
-    return gameStore.currentSession.requiredPlayers.filter(
-        (playerId) => !currentStoryVotes[playerId],
-    );
+function revealAllVotes() {
+    console.log("Revealing all votes globally");
+    gameStore.revealVotes();
 }
 
 // Helper functions for stories overview
@@ -1027,6 +984,40 @@ function getPhaseText(phase: string): string {
 .summary-btn:hover {
     background: linear-gradient(145deg, #8e44ad, #7d3c98) !important;
     box-shadow: 0 4px 8px rgba(155, 89, 182, 0.3) !important;
+}
+
+.reveal-btn {
+    background: linear-gradient(145deg, #e67e22, #d35400) !important;
+    border-color: #e67e22 !important;
+}
+
+.reveal-btn:hover {
+    background: linear-gradient(145deg, #d35400, #ca6f1e) !important;
+    box-shadow: 0 4px 8px rgba(230, 126, 34, 0.3) !important;
+}
+
+.global-status {
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.all-complete-notice {
+    background: rgba(46, 204, 113, 0.2);
+    border: 2px solid #2ecc71;
+    color: #2ecc71;
+    padding: 1rem;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.progress-notice {
+    background: rgba(52, 152, 219, 0.2);
+    border: 2px solid #3498db;
+    color: #3498db;
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-weight: bold;
 }
 
 /* Modal Styles */
