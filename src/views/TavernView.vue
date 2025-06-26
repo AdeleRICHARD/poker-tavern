@@ -76,6 +76,7 @@
                     </div>
                 </div>
 
+                <!-- session jira token to make in a component -->
                 <div v-if="!gameStore.currentSession" class="no-session-notice">
                     <h3>🏠 No Session</h3>
                     <p>
@@ -129,6 +130,7 @@
                     </div>
                 </div>
 
+                <!-- session ticket to do to make in a component -->
                 <div
                     class="stories-overview"
                     v-if="
@@ -198,6 +200,7 @@
                     </div>
                 </div>
 
+                <!-- poker cards to make in a component -->
                 <div class="poker-cards">
                     <h3>🃏 Your cards</h3>
                     <div class="cards-grid">
@@ -282,7 +285,7 @@
                 </div>
             </div>
 
-            <!-- Chat on the right -->
+            <!-- Chat on the right to put in a component -->
             <div class="chat-panel wow-panel">
                 <h3>💬 Discussion</h3>
                 <div class="chat-messages" ref="chatMessages">
@@ -322,7 +325,7 @@
             </div>
         </div>
 
-        <!-- Vote Summary Modal -->
+        <!-- Vote Summary Modal to put in a component -->
         <div
             v-if="showSummaryModal"
             class="modal-overlay"
