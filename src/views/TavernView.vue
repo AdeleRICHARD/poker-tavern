@@ -3,7 +3,16 @@
         <div class="tavern-container">
             <!-- Control panel on the left -->
             <div class="control-panel wow-panel">
-                <h3>🎭 Choose your character</h3>
+                <div class="panel-header">
+                    <h3>🎭 Choose your character</h3>
+                    <button
+                        class="logout-btn"
+                        @click="handleLogout"
+                        title="Logout"
+                    >
+                        🚪
+                    </button>
+                </div>
                 <div class="character-selection">
                     <button
                         v-for="character in gameStore.availableCharacters"
@@ -67,6 +76,15 @@
                     </div>
                 </div>
 
+                <div v-if="!gameStore.currentSession" class="no-session-notice">
+                    <h3>🏠 No Session</h3>
+                    <p>
+                        You need to be connected to a session to start
+                        estimating.
+                    </p>
+                    <p>Please log in or create a session first.</p>
+                </div>
+
                 <div class="current-vote" v-if="gameStore.currentStory">
                     <div class="story-header">
                         <h3>🎯 Story to estimate</h3>
@@ -111,7 +129,13 @@
                     </div>
                 </div>
 
-                <div class="stories-overview" v-if="gameStore.currentSession">
+                <div
+                    class="stories-overview"
+                    v-if="
+                        gameStore.currentSession &&
+                        gameStore.currentSession.stories.length > 0
+                    "
+                >
                     <h3>📋 Stories Overview</h3>
                     <div class="stories-list">
                         <div
@@ -218,7 +242,8 @@
                     <button
                         v-if="
                             gameStore.gamePhase === 'voting' &&
-                            !gameStore.allStoriesVotedByEveryone
+                            !gameStore.allStoriesVotedByEveryone &&
+                            gameStore.currentSession
                         "
                         class="wow-button test-btn"
                         @click="makeOthersVote"
@@ -425,16 +450,28 @@ onMounted(() => {
     if (phaserContainer.value) {
         gameManager.init("phaser-game");
 
-        // Initialize test data
-        gameStore.connectToSession("test-session");
+        // Initialize store
+        gameStore.initializeStore();
 
-        // Sync initial players after delay
+        // Sync any existing players after delay
         setTimeout(() => {
-            console.log("Syncing initial players to Phaser");
-            gameManager.syncInitialPlayers(gameStore.players);
+            if (gameStore.players.length > 0) {
+                console.log("Syncing initial players to Phaser");
+                gameManager.syncInitialPlayers(gameStore.players);
+            }
         }, 500);
     }
 });
+
+// Add emit to communicate with parent
+const emit = defineEmits<{
+    logout: [];
+}>();
+
+function handleLogout() {
+    gameStore.logout();
+    emit("logout");
+}
 
 onUnmounted(() => {
     gameManager.destroy();
@@ -738,11 +775,39 @@ function getPhaseText(phase: string): string {
     max-height: 100%;
 }
 
-.control-panel h3 {
-    color: #ffd700;
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 1rem;
+}
+
+.panel-header h3 {
+    color: #ffd700;
     text-align: center;
     font-size: 1.1rem;
+    margin: 0;
+}
+
+.logout-btn {
+    background: rgba(231, 76, 60, 0.2);
+    border: 2px solid #e74c3c;
+    color: #e74c3c;
+    padding: 0.5rem;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 1rem;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logout-btn:hover {
+    background: rgba(231, 76, 60, 0.4);
+    transform: scale(1.1);
 }
 
 .character-selection {
@@ -1018,6 +1083,26 @@ function getPhaseText(phase: string): string {
     padding: 0.75rem;
     border-radius: 8px;
     font-weight: bold;
+}
+
+.no-session-notice {
+    text-align: center;
+    padding: 2rem;
+    background: rgba(149, 165, 166, 0.2);
+    border: 2px solid #95a5a6;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.no-session-notice h3 {
+    color: #95a5a6;
+    margin-bottom: 1rem;
+}
+
+.no-session-notice p {
+    color: #ecf0f1;
+    margin-bottom: 0.5rem;
+    font-style: italic;
 }
 
 /* Modal Styles */

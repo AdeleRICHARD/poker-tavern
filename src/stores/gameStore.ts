@@ -175,103 +175,16 @@ export const useGameStore = defineStore("game", () => {
   });
 
   // Actions
-  function initMockData() {
-    // Test session
-    currentSession.value = {
-      id: "session-1",
-      name: "Sprint 24 - Planning",
-      createdAt: new Date(),
-      isActive: true,
-      currentStoryIndex: 0,
-      stories: [
-        {
-          id: "story-1",
-          title: "OAuth 2.0 Implementation",
-          description: "Add OAuth authentication with Google and GitHub",
-          jiraKey: "DEV-123",
-        },
-        {
-          id: "story-2",
-          title: "Push Notification API",
-          description: "Create real-time notification system",
-          jiraKey: "DEV-124",
-        },
-        {
-          id: "story-3",
-          title: "Analytics Dashboard",
-          description: "User metrics visualization interface",
-          jiraKey: "DEV-125",
-        },
-      ],
-      revealVotes: false,
-      persistentVotes: {},
-      requiredPlayers: ["player-1", "player-2", "player-3"], // Simulated team
-    };
-
-    // Load persistent state from localStorage
-    loadPersistedState();
-
-    // Test players (no votes initially, will be loaded from persistence)
-    players.value = [
-      {
-        id: "player-1",
-        name: "Alice",
-        character: "mage",
-        emoji: "🧙‍♀️",
-        hasVoted: false,
-        position: { x: 400, y: 200 },
-        isReady: true,
-      },
-      {
-        id: "player-2",
-        name: "Bob",
-        character: "paladin",
-        emoji: "⚔️",
-        hasVoted: false,
-        position: { x: 600, y: 300 },
-        isReady: true,
-      },
-      {
-        id: "player-3",
-        name: "Charlie",
-        character: "rogue",
-        emoji: "🗡️",
-        hasVoted: false,
-        position: { x: 200, y: 400 },
-        isReady: true,
-      },
-    ];
-
-    // Update player voted status based on persistent votes
-    updatePlayerVotedStatus();
-
-    // Test chat messages
-    chatMessages.value = [
-      {
-        id: "msg-1",
-        author: "System",
-        text: "Planning session started",
-        timestamp: new Date(),
-        type: "system",
-      },
-      {
-        id: "msg-2",
-        author: "Alice",
-        text: "Hello everyone!",
-        timestamp: new Date(),
-        type: "message",
-      },
-    ];
-
-    gamePhase.value = "voting";
-
-    // Set initial story to first one
+  function initializeStore() {
+    // Initialize empty state - will be populated by backend
+    currentSession.value = null;
+    players.value = [];
+    chatMessages.value = [];
+    gamePhase.value = "waiting";
     localStoryIndex.value = 0;
 
-    // Check if all stories are complete and should be revealed
-    if (allStoriesVotedByEveryone.value && currentSession.value.revealVotes) {
-      gamePhase.value = "revealed";
-    }
+    // Load any persisted local state
+    loadPersistedState();
   }
 
   function selectCharacter(characterId: string) {
@@ -496,21 +409,96 @@ export const useGameStore = defineStore("game", () => {
     });
   }
 
-  // WebSocket connection (mocked for now)
+  // WebSocket connection - to be implemented with Go backend
   function connectToSession(sessionId: string) {
     isConnected.value = true;
-    initMockData();
+
+    // Create a mock session for now
+    currentSession.value = {
+      id: sessionId,
+      name: `Session ${sessionId}`,
+      createdAt: new Date(),
+      isActive: true,
+      currentStoryIndex: 0,
+      stories: [],
+      revealVotes: false,
+      persistentVotes: {},
+      requiredPlayers: [],
+    };
+
+    gamePhase.value = "waiting";
 
     addChatMessage({
       author: "System",
-      text: "Connected to session",
+      text: `Connected to session ${sessionId}`,
       type: "system",
     });
+
+    // TODO: Implement WebSocket connection to Go backend
+    console.log("TODO: Connect to backend session:", sessionId);
   }
 
   function disconnectFromSession() {
     isConnected.value = false;
     resetGame();
+
+    addChatMessage({
+      author: "System",
+      text: "Disconnected from session",
+      type: "system",
+    });
+
+    // TODO: Close WebSocket connection
+    console.log("TODO: Disconnect from backend");
+  }
+
+  // New functions for backend integration
+  async function joinSession(sessionId: string, playerName: string) {
+    // TODO: Send join request to backend
+    console.log("TODO: Join session", sessionId, "as", playerName);
+
+    // For now, just simulate success
+    return Promise.resolve();
+  }
+
+  async function createSession(sessionName: string, stories: Story[]) {
+    // TODO: Create new session via API
+    console.log("TODO: Create session", sessionName, "with stories", stories);
+
+    // For now, create a mock session ID
+    const newSessionId = `session-${Date.now()}`;
+
+    currentSession.value = {
+      id: newSessionId,
+      name: sessionName,
+      createdAt: new Date(),
+      isActive: true,
+      currentStoryIndex: 0,
+      stories: stories,
+      revealVotes: false,
+      persistentVotes: {},
+      requiredPlayers: [],
+    };
+
+    return Promise.resolve(newSessionId);
+  }
+
+  function authenticatePlayer(credentials: any) {
+    // TODO: Authenticate with backend
+    console.log("TODO: Authenticate player", credentials);
+  }
+
+  function logout() {
+    disconnectFromSession();
+    currentPlayer.value = null;
+    localPlayerId.value = null;
+    localStorage.removeItem("localPlayerId");
+
+    addChatMessage({
+      author: "System",
+      text: "Logged out successfully",
+      type: "system",
+    });
   }
 
   return {
@@ -539,7 +527,7 @@ export const useGameStore = defineStore("game", () => {
     currentStoryProgress,
 
     // Actions
-    initMockData,
+    initializeStore,
     selectCharacter,
     selectCard,
     submitVote,
@@ -552,6 +540,10 @@ export const useGameStore = defineStore("game", () => {
     resetGame,
     connectToSession,
     disconnectFromSession,
+    joinSession,
+    createSession,
+    authenticatePlayer,
+    logout,
     savePersistedState,
     loadPersistedState,
     hasCurrentPlayerVoted,

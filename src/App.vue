@@ -1,18 +1,32 @@
 <template>
     <div id="app">
-        <header class="app-header">
+        <header v-if="isLoggedIn" class="app-header">
             <h1>🏰 Planning Poker Tavern</h1>
             <p>Collaborative estimation for your development team</p>
         </header>
 
         <main class="app-main">
-            <TavernView />
+            <LoginView v-if="!isLoggedIn" @login-success="handleLoginSuccess" />
+            <TavernView v-else @logout="handleLogout" />
         </main>
     </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
 import TavernView from "./views/TavernView.vue";
+import LoginView from "./views/LoginView.vue";
+
+// Login state
+const isLoggedIn = ref(false);
+
+function handleLoginSuccess() {
+    isLoggedIn.value = true;
+}
+
+function handleLogout() {
+    isLoggedIn.value = false;
+}
 </script>
 
 <!-- Global styles (not scoped) -->
