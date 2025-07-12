@@ -9,12 +9,12 @@ import (
 func main() {
 	http.HandleFunc("/health", healthHandler)
 
-	// On enveloppe le DefaultServeMux avec le middleware CORS
+	// Wrap with cors middleware
 	handler := corsMiddleware(http.DefaultServeMux)
 
-	addr := ":8080"
-	log.Printf("Starting server on %s\n", addr)
-	if err := http.ListenAndServe(addr, handler); err != nil {
+	addresse := ":8080"
+	log.Printf("Starting server on %s\n", addresse)
+	if err := http.ListenAndServe(addresse, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
