@@ -31,6 +31,15 @@
                     </button>
                 </div>
 
+                <!-- Debug section - remove this later -->
+                <div class="debug-info" style="background: rgba(255,0,0,0.1); padding: 1rem; margin: 1rem 0; border-radius: 8px;">
+                    <h4>🐛 Debug Info</h4>
+                    <p><strong>Has Session:</strong> {{ !!gameStore.currentSession }}</p>
+                    <p v-if="gameStore.currentSession"><strong>Session ID:</strong> {{ gameStore.currentSession.id }}</p>
+                    <p v-if="gameStore.currentSession"><strong>Session Name:</strong> {{ gameStore.currentSession.name }}</p>
+                    <p><strong>Is Connected:</strong> {{ gameStore.isConnected }}</p>
+                </div>
+                
                 <div class="room-info" v-if="gameStore.currentSession">
                     <h3>📋 Current session</h3>
                     <p>
@@ -41,6 +50,36 @@
                         <strong>Required players:</strong>
                         {{ gameStore.currentSession.requiredPlayers.length }}
                     </p>
+                    
+                    <!-- Session sharing section -->
+                    <div class="session-sharing">
+                        <h4>🔗 Share Session</h4>
+                        <div class="session-id-display">
+                            <label>Session ID:</label>
+                            <div class="session-id-container">
+                                <input 
+                                    ref="sessionIdInput"
+                                    :value="gameStore.currentSession.id" 
+                                    readonly 
+                                    class="session-id-input"
+                                    @click="selectSessionId"
+                                />
+                                <button 
+                                    @click="copySessionId" 
+                                    class="copy-btn"
+                                    :class="{ copied: showCopied }"
+                                    :title="showCopied ? 'Copied!' : 'Copy Session ID'"
+                                >
+                                    {{ showCopied ? '✅' : '📋' }}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="share-instructions">
+                            <p>📤 <strong>Share this Session ID</strong> with your team members so they can join!</p>
+                            <p>💡 They can paste it in the "Session ID" field on the login page.</p>
+                        </div>
+                    </div>
 
                     <div class="voting-status">
                         <h4>🗳️ Global Voting Status</h4>
@@ -442,11 +481,13 @@ const gameStore = useGameStore();
 // Vue references
 const phaserContainer = ref<HTMLElement>();
 const chatMessages = ref<HTMLElement>();
+const sessionIdInput = ref<HTMLInputElement>();
 
 // Local state
 const gameManager = new GameManager();
 const newMessage = ref("");
 const showSummaryModal = ref(false);
+const showCopied = ref(false);
 
 // Lifecycle
 onMounted(() => {
@@ -700,6 +741,19 @@ function revealAllVotes() {
     gameStore.revealVotes();
 }
 
+function selectSessionId() {
+    sessionIdInput.value?.select();
+}
+
+function copySessionId() {
+    if (sessionIdInput.value) {
+        sessionIdInput.value.select();
+        document.execCommand('copy');
+        showCopied.value = true;
+        setTimeout(() => (showCopied.value = false), 2000);
+    }
+}
+
 // Helper functions for stories overview
 function isStoryRevealed(storyId: string): boolean {
     if (!gameStore.currentSession) return false;
@@ -849,6 +903,118 @@ function getPhaseText(phase: string): string {
 .room-info p {
     margin: 0.25rem 0;
     font-size: 0.9rem;
+}
+
+/* Session sharing styles */
+.session-sharing {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: rgba(52, 73, 94, 0.3);
+    border-radius: 8px;
+    border: 2px solid #34495e;
+}
+
+.session-sharing h4 {
+    color: #3498db;
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    text-align: center;
+}
+
+.session-id-display {
+    margin-bottom: 1rem;
+}
+
+.session-id-display label {
+    display: block;
+    color: #95a5a6;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+.session-id-container {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.session-id-input {
+    flex: 1;
+    padding: 0.75rem;
+    border: 2px solid #7f8c8d;
+    border-radius: 6px;
+    background: rgba(52, 73, 94, 0.8);
+    color: #ecf0f1;
+    font-size: 0.9rem;
+    font-family: monospace;
+    cursor: pointer;
+    transition: border-color 0.3s ease;
+}
+
+.session-id-input:hover {
+    border-color: #3498db;
+}
+
+.session-id-input:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+}
+
+.copy-btn {
+    padding: 0.75rem;
+    background: linear-gradient(145deg, #27ae60, #229954);
+    border: 2px solid #2ecc71;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 1rem;
+    min-width: 50px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.copy-btn:hover {
+    background: linear-gradient(145deg, #229954, #1e8449);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(46, 204, 113, 0.3);
+}
+
+.copy-btn.copied {
+    background: linear-gradient(145deg, #3498db, #2980b9);
+    border-color: #3498db;
+}
+
+.copy-btn.copied:hover {
+    background: linear-gradient(145deg, #2980b9, #21618c);
+    box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+}
+
+.share-instructions {
+    background: rgba(241, 196, 15, 0.1);
+    border: 1px solid #f39c12;
+    border-radius: 6px;
+    padding: 0.75rem;
+    text-align: center;
+}
+
+.share-instructions p {
+    margin: 0.25rem 0;
+    font-size: 0.85rem;
+    color: #ecf0f1;
+}
+
+.share-instructions p:first-child {
+    color: #f39c12;
+    font-weight: bold;
+}
+
+.share-instructions strong {
+    color: #ffd700;
 }
 
 .players-list {

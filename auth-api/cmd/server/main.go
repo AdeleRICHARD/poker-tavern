@@ -6,16 +6,34 @@ import (
 	"net/http"
 	"slices"
 	"sync"
+	"time"
 
+	"github.com/andygrunwald/go-jira"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
 // Session represents a Planning Poker session.
 type Session struct {
-	SessionID string   `json:"sessionId"`
-	Name      string   `json:"name"`
-	Players   []string `json:"players"`
+	SessionID    string        `json:"sessionId"`
+	Name         string        `json:"name"`
+	Players      []string      `json:"players"`
+	Stories      []Story       `json:"stories"`
+	ChatMessages []ChatMessage `json:"chatMessages"`
+}
+
+// Story represents an imported story (e.g., from Jira).
+type Story struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+// ChatMessage represents a chat entry.
+type ChatMessage struct {
+	Author    string `json:"author"`
+	Text      string `json:"text"`
+	Timestamp string `json:"timestamp"`
 }
 
 // sessions stores the created sessions in memory.
@@ -91,10 +109,11 @@ func getOrCreateHub(sessionID string) *Hub {
 
 func main() {
 	// Define endpoints.
-	http.HandleFunc("/health", healthHandler)            // Health check endpoint.
-	http.HandleFunc("/session", createSessionHandler)    // POST request to create a session.
-	http.HandleFunc("/session/join", joinSessionHandler) // POST request to join a session.
-	http.HandleFunc("/ws", wsHandler)                    // WebSocket endpoint for real-time updates.
+	http.HandleFunc("/health", healthHandler)                  // Health check endpoint.
+	http.HandleFunc("/session", createSessionHandler)          // POST request to create a session.
+	http.HandleFunc("/session/join", joinSessionHandler)       // POST request to join a session.
+	http.HandleFunc("/session/import-jira", importJiraHandler) // POST request to import Jira issues.
+	http.HandleFunc("/ws", wsHandler)                          // WebSocket endpoint for real-time updates (including chat).
 
 	// Wrap DefaultServeMux with CORS middleware.
 	handler := corsMiddleware(http.DefaultServeMux)
@@ -137,9 +156,11 @@ func createSessionHandler(w http.ResponseWriter, r *http.Request) {
 	// Generate a unique session ID.
 	sessionID := uuid.New().String()
 	session := &Session{
-		SessionID: sessionID,
-		Name:      payload.Name,
-		Players:   []string{},
+		SessionID:    sessionID,
+		Name:         payload.Name,
+		Players:      []string{},
+		Stories:      []Story{},
+		ChatMessages: []ChatMessage{},
 	}
 
 	sessionsMutex.Lock()
@@ -206,6 +227,95 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(session)
 }
 
+// importJiraHandler fetches issues from Jira and adds them as stories to the session.
+func importJiraHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		SessionID string `json:"sessionId"`
+		JiraURL   string `json:"jiraUrl"`  // e.g., "https://your-domain.atlassian.net"
+		Username  string `json:"username"` // Jira email
+		APIToken  string `json:"apiToken"` // API token
+		JQL       string `json:"jql"`      // e.g., "project = PROJ AND status = 'To Do'"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if payload.JiraURL == "" || payload.Username == "" || payload.APIToken == "" || payload.JQL == "" {
+		http.Error(w, "All Jira fields are required", http.StatusBadRequest)
+		return
+	}
+
+	sessionsMutex.Lock()
+	session, ok := sessions[payload.SessionID]
+	if !ok {
+		sessionsMutex.Unlock()
+		http.Error(w, "Session not found", http.StatusNotFound)
+		return
+	}
+	sessionsMutex.Unlock()
+
+	// Connect to Jira
+	tp := jira.BasicAuthTransport{
+		Username: payload.Username,
+		Password: payload.APIToken,
+	}
+	client, err := jira.NewClient(tp.Client(), payload.JiraURL)
+	if err != nil {
+		http.Error(w, "Failed to connect to Jira: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch issues via JQL
+	issues, _, err := client.Issue.Search(payload.JQL, &jira.SearchOptions{
+		MaxResults: 50, // Limit for safety
+	})
+	if err != nil {
+		http.Error(w, "Failed to fetch Jira issues: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Map to Stories
+	newStories := []Story{}
+	for _, issue := range issues {
+		storyID := uuid.New().String()
+		story := Story{
+			ID:          storyID,
+			Title:       issue.Key + ": " + issue.Fields.Summary,
+			Description: issue.Fields.Description,
+		}
+		newStories = append(newStories, story)
+	}
+
+	// Add to session
+	sessionsMutex.Lock()
+	session.Stories = append(session.Stories, newStories...)
+	sessionsMutex.Unlock()
+
+	// Broadcast the update
+	go func() {
+		hub := getOrCreateHub(payload.SessionID)
+		message := map[string]interface{}{
+			"type":    "stories_imported",
+			"stories": newStories,
+			"session": session,
+		}
+		msgBytes, _ := json.Marshal(message)
+		hub.broadcast <- msgBytes
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"imported": len(newStories),
+		"stories":  newStories,
+	})
+}
+
 // wsHandler handles WebSocket connections.
 // Expects query param: ?sessionId=xxx
 func wsHandler(w http.ResponseWriter, r *http.Request) {
@@ -217,7 +327,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check if session exists.
 	sessionsMutex.Lock()
-	_, ok := sessions[sessionID]
+	session, ok := sessions[sessionID]
 	sessionsMutex.Unlock()
 	if !ok {
 		http.Error(w, "Session not found", http.StatusNotFound)
@@ -240,18 +350,55 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	hub := getOrCreateHub(sessionID)
 	hub.register <- conn
 
-	// Goroutine to handle reading messages (e.g., for future chat/voting).
+	// Goroutine to handle reading messages (now includes chat handling).
 	go func() {
 		defer func() {
 			hub.unregister <- conn
 		}()
 		for {
-			_, _, err := conn.ReadMessage()
+			_, msg, err := conn.ReadMessage()
 			if err != nil {
 				log.Printf("WebSocket read error: %v", err)
 				break
 			}
-			// TODO: Handle incoming messages (e.g., chat, votes).
+
+			var incoming map[string]interface{}
+			if err := json.Unmarshal(msg, &incoming); err != nil {
+				log.Printf("Invalid message JSON: %v", err)
+				continue
+			}
+
+			switch incoming["type"] {
+			case "chat":
+				author, ok := incoming["author"].(string)
+				if !ok {
+					continue
+				}
+				text, ok := incoming["text"].(string)
+				if !ok {
+					continue
+				}
+
+				// Append to session's chat history
+				sessionsMutex.Lock()
+				session.ChatMessages = append(session.ChatMessages, ChatMessage{
+					Author:    author,
+					Text:      text,
+					Timestamp: time.Now().Format(time.RFC3339),
+				})
+				sessionsMutex.Unlock()
+
+				// Broadcast the new message
+				broadcastMsg := map[string]interface{}{
+					"type":        "chat_message",
+					"chatMessage": session.ChatMessages[len(session.ChatMessages)-1],
+				}
+				broadcastBytes, _ := json.Marshal(broadcastMsg)
+				hub.broadcast <- broadcastBytes
+			// TODO: Add other types if needed later (e.g., "vote").
+			default:
+				log.Printf("Unknown message type: %v", incoming["type"])
+			}
 		}
 	}()
 }

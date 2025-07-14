@@ -413,18 +413,20 @@ export const useGameStore = defineStore("game", () => {
   function connectToSession(sessionId: string) {
     isConnected.value = true;
 
-    // Create a mock session for now
-    currentSession.value = {
-      id: sessionId,
-      name: `Session ${sessionId}`,
-      createdAt: new Date(),
-      isActive: true,
-      currentStoryIndex: 0,
-      stories: [],
-      revealVotes: false,
-      persistentVotes: {},
-      requiredPlayers: [],
-    };
+    // Only create mock session if no session exists yet OR if the session ID doesn't match
+    if (!currentSession.value || currentSession.value.id !== sessionId) {
+      currentSession.value = {
+        id: sessionId,
+        name: `Session ${sessionId}`,
+        createdAt: new Date(),
+        isActive: true,
+        currentStoryIndex: 0,
+        stories: [],
+        revealVotes: false,
+        persistentVotes: {},
+        requiredPlayers: [],
+      };
+    }
 
     gamePhase.value = "waiting";
 
@@ -462,25 +464,45 @@ export const useGameStore = defineStore("game", () => {
   }
 
   async function createSession(sessionName: string, stories: Story[]) {
-    // TODO: Create new session via API
-    console.log("TODO: Create session", sessionName, "with stories", stories);
+    console.log("Creating session", sessionName, "with stories", stories);
 
-    // For now, create a mock session ID
-    const newSessionId = `session-${Date.now()}`;
+    try {
+      // Call the backend API to create session
+      const response = await fetch('http://localhost:8080/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: sessionName
+        })
+      });
 
-    currentSession.value = {
-      id: newSessionId,
-      name: sessionName,
-      createdAt: new Date(),
-      isActive: true,
-      currentStoryIndex: 0,
-      stories: stories,
-      revealVotes: false,
-      persistentVotes: {},
-      requiredPlayers: [],
-    };
+      if (!response.ok) {
+        throw new Error(`Failed to create session: ${response.status}`);
+      }
 
-    return Promise.resolve(newSessionId);
+      const sessionData = await response.json();
+      console.log('Backend response:', sessionData);
+
+      // Create local session object with backend data
+      currentSession.value = {
+        id: sessionData.sessionId,
+        name: sessionData.name,
+        createdAt: new Date(),
+        isActive: true,
+        currentStoryIndex: 0,
+        stories: stories,
+        revealVotes: false,
+        persistentVotes: {},
+        requiredPlayers: [],
+      };
+
+      return sessionData.sessionId;
+    } catch (error) {
+      console.error('Error creating session:', error);
+      throw error;
+    }
   }
 
   function authenticatePlayer(credentials: any) {
