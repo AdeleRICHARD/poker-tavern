@@ -414,6 +414,7 @@ export const useGameStore = defineStore("game", () => {
     isConnected.value = true;
 
     // Only create mock session if no session exists yet OR if the session ID doesn't match
+    // This should only happen when joining an existing session, not when creating a new one
     if (!currentSession.value || currentSession.value.id !== sessionId) {
       currentSession.value = {
         id: sessionId,
@@ -432,7 +433,7 @@ export const useGameStore = defineStore("game", () => {
 
     addChatMessage({
       author: "System",
-      text: `Connected to session ${sessionId}`,
+      text: `Connected to session ${currentSession.value?.name || sessionId}`,
       type: "system",
     });
 
@@ -468,14 +469,14 @@ export const useGameStore = defineStore("game", () => {
 
     try {
       // Call the backend API to create session
-      const response = await fetch('http://localhost:8080/session', {
-        method: 'POST',
+      const response = await fetch("http://localhost:8080/session", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: sessionName
-        })
+          name: sessionName,
+        }),
       });
 
       if (!response.ok) {
@@ -483,7 +484,7 @@ export const useGameStore = defineStore("game", () => {
       }
 
       const sessionData = await response.json();
-      console.log('Backend response:', sessionData);
+      console.log("Backend response:", sessionData);
 
       // Create local session object with backend data
       currentSession.value = {
@@ -500,7 +501,7 @@ export const useGameStore = defineStore("game", () => {
 
       return sessionData.sessionId;
     } catch (error) {
-      console.error('Error creating session:', error);
+      console.error("Error creating session:", error);
       throw error;
     }
   }

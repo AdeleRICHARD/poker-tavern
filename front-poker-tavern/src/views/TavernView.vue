@@ -32,14 +32,34 @@
                 </div>
 
                 <!-- Debug section - remove this later -->
-                <div class="debug-info" style="background: rgba(255,0,0,0.1); padding: 1rem; margin: 1rem 0; border-radius: 8px;">
+                <div
+                    class="debug-info"
+                    style="
+                        background: rgba(255, 0, 0, 0.1);
+                        padding: 1rem;
+                        margin: 1rem 0;
+                        border-radius: 8px;
+                    "
+                >
                     <h4>🐛 Debug Info</h4>
-                    <p><strong>Has Session:</strong> {{ !!gameStore.currentSession }}</p>
-                    <p v-if="gameStore.currentSession"><strong>Session ID:</strong> {{ gameStore.currentSession.id }}</p>
-                    <p v-if="gameStore.currentSession"><strong>Session Name:</strong> {{ gameStore.currentSession.name }}</p>
-                    <p><strong>Is Connected:</strong> {{ gameStore.isConnected }}</p>
+                    <p>
+                        <strong>Has Session:</strong>
+                        {{ !!gameStore.currentSession }}
+                    </p>
+                    <p v-if="gameStore.currentSession">
+                        <strong>Session ID:</strong>
+                        {{ gameStore.currentSession.id }}
+                    </p>
+                    <p v-if="gameStore.currentSession">
+                        <strong>Session Name:</strong>
+                        {{ gameStore.currentSession.name }}
+                    </p>
+                    <p>
+                        <strong>Is Connected:</strong>
+                        {{ gameStore.isConnected }}
+                    </p>
                 </div>
-                
+
                 <div class="room-info" v-if="gameStore.currentSession">
                     <h3>📋 Current session</h3>
                     <p>
@@ -50,34 +70,43 @@
                         <strong>Required players:</strong>
                         {{ gameStore.currentSession.requiredPlayers.length }}
                     </p>
-                    
+
                     <!-- Session sharing section -->
                     <div class="session-sharing">
                         <h4>🔗 Share Session</h4>
                         <div class="session-id-display">
                             <label>Session ID:</label>
                             <div class="session-id-container">
-                                <input 
+                                <input
                                     ref="sessionIdInput"
-                                    :value="gameStore.currentSession.id" 
-                                    readonly 
+                                    :value="gameStore.currentSession.id"
+                                    readonly
                                     class="session-id-input"
                                     @click="selectSessionId"
                                 />
-                                <button 
-                                    @click="copySessionId" 
+                                <button
+                                    @click="copySessionId"
                                     class="copy-btn"
                                     :class="{ copied: showCopied }"
-                                    :title="showCopied ? 'Copied!' : 'Copy Session ID'"
+                                    :title="
+                                        showCopied
+                                            ? 'Copied!'
+                                            : 'Copy Session ID'
+                                    "
                                 >
-                                    {{ showCopied ? '✅' : '📋' }}
+                                    {{ showCopied ? "✅" : "📋" }}
                                 </button>
                             </div>
                         </div>
-                        
                         <div class="share-instructions">
-                            <p>📤 <strong>Share this Session ID</strong> with your team members so they can join!</p>
-                            <p>💡 They can paste it in the "Session ID" field on the login page.</p>
+                            <p>
+                                📤 <strong>Share this Session ID</strong> with
+                                your team members so they can join!
+                            </p>
+                            <p>
+                                💡 They can paste it in the "Session ID" field
+                                on the login page.
+                            </p>
                         </div>
                     </div>
 
@@ -494,8 +523,10 @@ onMounted(() => {
     if (phaserContainer.value) {
         gameManager.init("phaser-game");
 
-        // Initialize store
-        gameStore.initializeStore();
+        // Initialize store only if no current session exists
+        if (!gameStore.currentSession) {
+            gameStore.initializeStore();
+        }
 
         // Sync any existing players after delay
         setTimeout(() => {
@@ -748,7 +779,7 @@ function selectSessionId() {
 function copySessionId() {
     if (sessionIdInput.value) {
         sessionIdInput.value.select();
-        document.execCommand('copy');
+        document.execCommand("copy");
         showCopied.value = true;
         setTimeout(() => (showCopied.value = false), 2000);
     }
