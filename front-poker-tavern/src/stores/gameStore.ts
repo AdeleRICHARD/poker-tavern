@@ -457,11 +457,59 @@ export const useGameStore = defineStore("game", () => {
 
   // New functions for backend integration
   async function joinSession(sessionId: string, playerName: string) {
-    // TODO: Send join request to backend
-    console.log("TODO: Join session", sessionId, "as", playerName);
+    console.log("Joining session", sessionId, "as", playerName);
 
-    // For now, just simulate success
-    return Promise.resolve();
+    try {
+      // First, join the session via the backend
+      const joinResponse = await fetch('http://localhost:8080/session/join', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: sessionId,
+          playerName: playerName,
+        }),
+      });
+
+      if (!joinResponse.ok) {
+        throw new Error(`Failed to join session: ${joinResponse.status}`);
+      }
+
+      const sessionData = await joinResponse.json();
+      console.log('Joined session data:', sessionData);
+
+      // Create local session object with backend data
+      currentSession.value = {
+        id: sessionData.sessionId,
+        name: sessionData.name,
+        createdAt: new Date(sessionData.createdAt || Date.now()),
+        isActive: true,
+        currentStoryIndex: 0,
+        stories: sessionData.stories || [],
+        revealVotes: false,
+        persistentVotes: {},
+        requiredPlayers: sessionData.players || [],
+      };
+
+      // Convert backend player strings to frontend player objects
+      if (sessionData.players) {
+        players.value = sessionData.players.map((playerName: string) => ({
+          id: playerName, // Using name as ID for now
+          name: playerName,
+          character: 'mage',
+          emoji: '🧙‍♂️',
+          hasVoted: false,
+          position: { x: 400, y: 400 },
+          isReady: true,
+        }));
+      }
+
+      return Promise.resolve();
+    } catch (error) {
+      console.error('Error joining session:', error);
+      throw error;
+    }
   }
 
   async function createSession(sessionName: string, stories: Story[]) {

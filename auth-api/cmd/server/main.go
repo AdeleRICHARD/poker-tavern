@@ -110,7 +110,7 @@ func getOrCreateHub(sessionID string) *Hub {
 func main() {
 	// Define endpoints.
 	http.HandleFunc("/health", healthHandler)                  // Health check endpoint.
-	http.HandleFunc("/session", createSessionHandler)          // POST request to create a session.
+	http.HandleFunc("/session", handleSession)                 // POST to create, GET to retrieve session.
 	http.HandleFunc("/session/join", joinSessionHandler)       // POST request to join a session.
 	http.HandleFunc("/session/import-jira", importJiraHandler) // POST request to import Jira issues.
 	http.HandleFunc("/ws", wsHandler)                          // WebSocket endpoint for real-time updates (including chat).
@@ -132,47 +132,69 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// createSessionHandler handles session creation.
-// Expects a POST request with JSON body: {"name": "session name"}
-func createSessionHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+// handleSession handles session creation and retrieval.
+// POST to create; GET to retrieve by ID
+func handleSession(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		// Create session
+		var payload struct {
+			Name string `json:"name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
+
+		if payload.Name == "" {
+			http.Error(w, "Session name is required", http.StatusBadRequest)
+			return
+		}
+
+		// Generate a unique session ID.
+		sessionID := uuid.New().String()
+		session := &Session{
+			SessionID:    sessionID,
+			Name:         payload.Name,
+			Players:      []string{},
+			Stories:      []Story{},
+			ChatMessages: []ChatMessage{},
+		}
+
+		sessionsMutex.Lock()
+		sessions[sessionID] = session
+		sessionsMutex.Unlock()
+
+		// Initialize WebSocket hub for the new session.
+		getOrCreateHub(sessionID)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(session)
 		return
 	}
 
-	var payload struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+	if r.Method == http.MethodGet {
+		// Get session by ID
+		sessionID := r.URL.Query().Get("sessionId")
+		if sessionID == "" {
+			http.Error(w, "sessionId query param required", http.StatusBadRequest)
+			return
+		}
+
+		sessionsMutex.Lock()
+		session, ok := sessions[sessionID]
+		sessionsMutex.Unlock()
+		if !ok {
+			http.Error(w, "Session not found", http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(session)
 		return
 	}
 
-	if payload.Name == "" {
-		http.Error(w, "Session name is required", http.StatusBadRequest)
-		return
-	}
-
-	// Generate a unique session ID.
-	sessionID := uuid.New().String()
-	session := &Session{
-		SessionID:    sessionID,
-		Name:         payload.Name,
-		Players:      []string{},
-		Stories:      []Story{},
-		ChatMessages: []ChatMessage{},
-	}
-
-	sessionsMutex.Lock()
-	sessions[sessionID] = session
-	sessionsMutex.Unlock()
-
-	// Initialize WebSocket hub for the new session.
-	getOrCreateHub(sessionID)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(session)
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
 // joinSessionHandler allows a player to join an existing session.
@@ -406,8 +428,13 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 // corsMiddleware adds CORS headers to every response.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow access from the frontend.
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		// Allow access from the frontend (both common ports).
+		origin := r.Header.Get("Origin")
+		if origin == "http://localhost:5173" || origin == "http://localhost:5174" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5174")
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
