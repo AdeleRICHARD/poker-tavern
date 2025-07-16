@@ -18,9 +18,15 @@ import { ref } from "vue";
 import TavernView from "./views/TavernView.vue";
 import LoginView from "./views/LoginView.vue";
 import HealthChecker from "./components/HealthChecker.vue";
+import { hasActiveSession, clearAllSessionData } from "./utils/sessionStorage";
 
 // Login state
 const isLoggedIn = ref(false);
+
+// Check for existing session in localStorage on app load
+if (hasActiveSession()) {
+    isLoggedIn.value = true;
+}
 
 function handleLoginSuccess() {
     isLoggedIn.value = true;
@@ -28,6 +34,7 @@ function handleLoginSuccess() {
 
 function handleLogout() {
     isLoggedIn.value = false;
+    clearAllSessionData(); // Clear all session data on logout
 }
 </script>
 

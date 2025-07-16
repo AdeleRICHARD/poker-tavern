@@ -1,5 +1,13 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
+import {
+  saveSessionData,
+  getSessionData,
+  getMostRecentSession,
+  getAvailableRooms as getAvailableRoomsUtil,
+  deleteRoom as deleteRoomUtil,
+  clearAllSessionData,
+} from "@/utils/sessionStorage";
 
 export interface Player {
   id: string;
@@ -40,6 +48,16 @@ export interface GameSession {
   requiredPlayers: string[]; // List of player IDs who need to vote
 }
 
+export enum GamePhase {
+  VOTING = "voting",
+  REVEALED = "revealed",
+  END = "end",
+  WAITING = "waiting",
+  START = "start",
+  IDLE = "idle",
+  LOBBY = "lobby",
+}
+
 export const useGameStore = defineStore("game", () => {
   // Reactive state
   const currentPlayer = ref<Player | null>(null);
@@ -47,9 +65,7 @@ export const useGameStore = defineStore("game", () => {
   const currentSession = ref<GameSession | null>(null);
   const chatMessages = ref<ChatMessage[]>([]);
   const selectedCard = ref<string | null>(null);
-  const gamePhase = ref<"waiting" | "voting" | "discussion" | "revealed">(
-    "waiting",
-  );
+  const gamePhase = ref<GamePhase>(GamePhase.WAITING);
   const isConnected = ref(false);
   const localPlayerId = ref<string | null>(null);
   const localStoryIndex = ref(0); // Independent story navigation
@@ -180,7 +196,7 @@ export const useGameStore = defineStore("game", () => {
     currentSession.value = null;
     players.value = [];
     chatMessages.value = [];
-    gamePhase.value = "waiting";
+    gamePhase.value = GamePhase.WAITING;
     localStoryIndex.value = 0;
 
     // Load any persisted local state
@@ -193,21 +209,41 @@ export const useGameStore = defineStore("game", () => {
     );
     if (!character) return;
 
-    // Generate or retrieve persistent player ID
+    // Generate or retrieve persistent player ID only if not already set
     if (!localPlayerId.value) {
       localPlayerId.value = `player-${Date.now()}`;
       localStorage.setItem("localPlayerId", localPlayerId.value);
     }
 
-    currentPlayer.value = {
-      id: localPlayerId.value,
-      name: "You", // To be replaced with real name
-      character: character.id,
-      emoji: character.emoji,
-      hasVoted: hasCurrentPlayerVoted(),
-      position: { x: 400, y: 400 }, // Default position
-      isReady: true,
-    };
+    // Update existing player or create new one
+    if (currentPlayer.value) {
+      // Update existing player's character
+      currentPlayer.value.character = character.id;
+      currentPlayer.value.emoji = character.emoji;
+      currentPlayer.value.hasVoted = hasCurrentPlayerVoted();
+
+      // Update the player in the players array
+      const existingPlayerIndex = players.value.findIndex(
+        (p) => p.id === currentPlayer.value!.id,
+      );
+      if (existingPlayerIndex >= 0) {
+        players.value[existingPlayerIndex] = { ...currentPlayer.value };
+      }
+    } else {
+      // Create new player
+      currentPlayer.value = {
+        id: localPlayerId.value,
+        name: "You", // To be replaced with real name
+        character: character.id,
+        emoji: character.emoji,
+        hasVoted: hasCurrentPlayerVoted(),
+        position: { x: 400, y: 400 }, // Default position
+        isReady: true,
+      };
+    }
+
+    // Save state after character selection
+    savePersistedState();
   }
 
   function selectCard(cardValue: string) {
@@ -260,7 +296,7 @@ export const useGameStore = defineStore("game", () => {
   function revealVotes() {
     if (!canReveal.value) return;
 
-    gamePhase.value = "revealed";
+    gamePhase.value = GamePhase.REVEALED;
     if (currentSession.value) {
       currentSession.value.revealVotes = true;
     }
@@ -285,7 +321,7 @@ export const useGameStore = defineStore("game", () => {
 
     // Reset local UI state
     selectedCard.value = null;
-    gamePhase.value = "voting";
+    gamePhase.value = GamePhase.VOTING;
 
     // Load existing vote for this story if any
     if (currentPlayer.value && hasCurrentPlayerVoted()) {
@@ -305,7 +341,7 @@ export const useGameStore = defineStore("game", () => {
 
     // Check if all stories are complete and should be revealed
     if (allStoriesVotedByEveryone.value && currentSession.value.revealVotes) {
-      gamePhase.value = "revealed";
+      gamePhase.value = GamePhase.REVEALED;
     }
 
     addChatMessage({
@@ -350,7 +386,7 @@ export const useGameStore = defineStore("game", () => {
     currentSession.value = null;
     chatMessages.value = [];
     selectedCard.value = null;
-    gamePhase.value = "waiting";
+    gamePhase.value = GamePhase.WAITING;
     currentPlayer.value = null;
   }
 
@@ -360,31 +396,68 @@ export const useGameStore = defineStore("game", () => {
 
     const persistedData = {
       sessionId: currentSession.value.id,
+      sessionName: currentSession.value.name,
       persistentVotes: currentSession.value.persistentVotes,
       localPlayerId: localPlayerId.value,
+      currentPlayer: currentPlayer.value,
+      players: players.value,
+      stories: currentSession.value.stories,
+      requiredPlayers: currentSession.value.requiredPlayers,
+      gamePhase: gamePhase.value,
+      localStoryIndex: localStoryIndex.value,
     };
 
-    localStorage.setItem("planningPokerState", JSON.stringify(persistedData));
+    // Use utility function to save session data
+    saveSessionData(currentSession.value.id, persistedData);
   }
 
-  function loadPersistedState() {
-    const savedData = localStorage.getItem("planningPokerState");
-    if (savedData && currentSession.value) {
-      try {
-        const parsed = JSON.parse(savedData);
-        if (parsed.sessionId === currentSession.value.id) {
-          currentSession.value.persistentVotes = parsed.persistentVotes || {};
-          localPlayerId.value = parsed.localPlayerId;
-        }
-      } catch (error) {
-        console.warn("Failed to load persisted state:", error);
-      }
+  function loadPersistedState(sessionId?: string) {
+    let parsed = null;
+
+    // If sessionId is provided, try to load session-specific data first
+    if (sessionId) {
+      parsed = getSessionData(sessionId);
     }
 
-    // Load local player ID
-    const savedPlayerId = localStorage.getItem("localPlayerId");
-    if (savedPlayerId) {
-      localPlayerId.value = savedPlayerId;
+    // Fall back to most recent session if no specific session requested
+    if (!parsed) {
+      parsed = getMostRecentSession();
+    }
+
+    if (parsed && parsed.sessionId && parsed.sessionName) {
+      // Restore session
+      currentSession.value = {
+        id: parsed.sessionId,
+        name: parsed.sessionName,
+        createdAt: new Date(),
+        isActive: true,
+        currentStoryIndex: 0,
+        stories: parsed.stories || [],
+        revealVotes: false,
+        persistentVotes: parsed.persistentVotes || {},
+        requiredPlayers: parsed.requiredPlayers || [],
+      };
+
+      // Restore local state
+      localPlayerId.value = parsed.localPlayerId;
+      currentPlayer.value = parsed.currentPlayer;
+      players.value = parsed.players || [];
+      gamePhase.value = parsed.gamePhase || GamePhase.WAITING;
+      localStoryIndex.value = parsed.localStoryIndex || 0;
+      isConnected.value = true;
+
+      console.log(
+        "Restored session state from localStorage:",
+        parsed.sessionId,
+      );
+    }
+
+    // Load local player ID if not already loaded
+    if (!localPlayerId.value) {
+      const savedPlayerId = localStorage.getItem("localPlayerId");
+      if (savedPlayerId) {
+        localPlayerId.value = savedPlayerId;
+      }
     }
   }
 
@@ -429,7 +502,7 @@ export const useGameStore = defineStore("game", () => {
       };
     }
 
-    gamePhase.value = "waiting";
+    gamePhase.value = GamePhase.WAITING;
 
     addChatMessage({
       author: "System",
@@ -437,17 +510,22 @@ export const useGameStore = defineStore("game", () => {
       type: "system",
     });
 
+    // Save session state
+    savePersistedState();
+
     // TODO: Implement WebSocket connection to Go backend
     console.log("TODO: Connect to backend session:", sessionId);
   }
 
   function disconnectFromSession() {
     isConnected.value = false;
-    resetGame();
+
+    // Only clear local connection state, preserve room data for reconnection
+    // The session data stays in localStorage so user can rejoin later
 
     addChatMessage({
       author: "System",
-      text: "Disconnected from session",
+      text: "Disconnected from session (room data preserved)",
       type: "system",
     });
 
@@ -461,10 +539,10 @@ export const useGameStore = defineStore("game", () => {
 
     try {
       // First, join the session via the backend
-      const joinResponse = await fetch('http://localhost:8080/session/join', {
-        method: 'POST',
+      const joinResponse = await fetch("http://localhost:8080/session/join", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           sessionId: sessionId,
@@ -477,7 +555,7 @@ export const useGameStore = defineStore("game", () => {
       }
 
       const sessionData = await joinResponse.json();
-      console.log('Joined session data:', sessionData);
+      console.log("Joined session data:", sessionData);
 
       // Create local session object with backend data
       currentSession.value = {
@@ -497,8 +575,8 @@ export const useGameStore = defineStore("game", () => {
         players.value = sessionData.players.map((playerName: string) => ({
           id: playerName, // Using name as ID for now
           name: playerName,
-          character: 'mage',
-          emoji: '🧙‍♂️',
+          character: "mage",
+          emoji: "🧙‍♂️",
           hasVoted: false,
           position: { x: 400, y: 400 },
           isReady: true,
@@ -507,7 +585,7 @@ export const useGameStore = defineStore("game", () => {
 
       return Promise.resolve();
     } catch (error) {
-      console.error('Error joining session:', error);
+      console.error("Error joining session:", error);
       throw error;
     }
   }
@@ -547,6 +625,9 @@ export const useGameStore = defineStore("game", () => {
         requiredPlayers: [],
       };
 
+      // Save session state
+      savePersistedState();
+
       return sessionData.sessionId;
     } catch (error) {
       console.error("Error creating session:", error);
@@ -564,6 +645,7 @@ export const useGameStore = defineStore("game", () => {
     currentPlayer.value = null;
     localPlayerId.value = null;
     localStorage.removeItem("localPlayerId");
+    localStorage.removeItem("planningPokerState");
 
     addChatMessage({
       author: "System",
@@ -619,5 +701,7 @@ export const useGameStore = defineStore("game", () => {
     loadPersistedState,
     hasCurrentPlayerVoted,
     updatePlayerVotedStatus,
+    getAvailableRoomsUtil,
+    deleteRoomUtil,
   };
 });

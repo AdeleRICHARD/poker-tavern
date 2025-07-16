@@ -523,16 +523,25 @@ onMounted(() => {
     if (phaserContainer.value) {
         gameManager.init("phaser-game");
 
-        // Initialize store only if no current session exists
-        if (!gameStore.currentSession) {
-            gameStore.initializeStore();
-        }
+        // Always initialize store to load persisted state
+        gameStore.initializeStore();
 
-        // Sync any existing players after delay
+        // Sync any existing players after delay (including restored ones)
         setTimeout(() => {
             if (gameStore.players.length > 0) {
-                console.log("Syncing initial players to Phaser");
+                console.log("Syncing initial players to Phaser:", gameStore.players.length);
                 gameManager.syncInitialPlayers(gameStore.players);
+            }
+            
+            // If we have a restored current player, make sure it's added to Phaser
+            if (gameStore.currentPlayer && gameStore.currentSession) {
+                console.log("Adding restored current player to Phaser:", gameStore.currentPlayer.id);
+                gameManager.addPlayer(gameStore.currentPlayer.id, gameStore.currentPlayer);
+                
+                // Update vote status if player has voted
+                if (gameStore.currentPlayer.hasVoted) {
+                    gameManager.updatePlayerVote(gameStore.currentPlayer.id, true);
+                }
             }
         }, 500);
     }
