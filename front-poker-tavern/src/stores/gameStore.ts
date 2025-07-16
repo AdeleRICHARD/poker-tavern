@@ -150,12 +150,12 @@ export const useGameStore = defineStore("game", () => {
   });
 
   const canReveal = computed(() => {
-    return gamePhase.value === "voting" && allStoriesVotedByEveryone.value;
+    return gamePhase.value === GamePhase.VOTING && allStoriesVotedByEveryone.value;
   });
 
   const votingResults = computed(() => {
     if (
-      gamePhase.value !== "revealed" ||
+      gamePhase.value !== GamePhase.REVEALED ||
       !currentStory.value ||
       !currentSession.value
     )
@@ -247,7 +247,7 @@ export const useGameStore = defineStore("game", () => {
   }
 
   function selectCard(cardValue: string) {
-    if (gamePhase.value !== "voting") return;
+    if (gamePhase.value !== GamePhase.VOTING) return;
     selectedCard.value = cardValue;
   }
 
