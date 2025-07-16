@@ -69,6 +69,7 @@ export const useGameStore = defineStore("game", () => {
   const isConnected = ref(false);
   const localPlayerId = ref<string | null>(null);
   const localStoryIndex = ref(0); // Independent story navigation
+  const wsConnection = ref<WebSocket | null>(null);
 
   // Mock data for testing
   const availableCharacters = ref([
@@ -482,43 +483,63 @@ export const useGameStore = defineStore("game", () => {
     });
   }
 
-  // WebSocket connection - to be implemented with Go backend
+  // Connect to session - now properly integrated with backend
   function connectToSession(sessionId: string) {
-    isConnected.value = true;
-
-    // Only create mock session if no session exists yet OR if the session ID doesn't match
-    // This should only happen when joining an existing session, not when creating a new one
+    // The session should already be loaded by joinSession or createSession
+    // This function now just sets the connected state and handles UI updates
+    
     if (!currentSession.value || currentSession.value.id !== sessionId) {
-      currentSession.value = {
-        id: sessionId,
-        name: `Session ${sessionId}`,
-        createdAt: new Date(),
-        isActive: true,
-        currentStoryIndex: 0,
-        stories: [],
-        revealVotes: false,
-        persistentVotes: {},
-        requiredPlayers: [],
-      };
+      console.error("Cannot connect to session: session not loaded. Call joinSession first.");
+      return;
     }
-
-    gamePhase.value = GamePhase.WAITING;
-
+    
+    isConnected.value = true;
+    
+    // Try to restore local user-specific data from localStorage
+    const localData = getSessionData(sessionId);
+    if (localData) {
+      // Restore user-specific preferences and state
+      gamePhase.value = localData.gamePhase || GamePhase.WAITING;
+      localStoryIndex.value = localData.localStoryIndex || 0;
+      
+      // Restore current player if it exists and matches
+      if (localData.currentPlayer && localData.localPlayerId) {
+        const existingPlayer = players.value.find(p => p.id === localData.localPlayerId);
+        if (existingPlayer) {
+          currentPlayer.value = existingPlayer;
+          localPlayerId.value = localData.localPlayerId;
+        }
+      }
+      
+      // Restore persistent votes (user-specific voting state)
+      if (localData.persistentVotes) {
+        currentSession.value.persistentVotes = localData.persistentVotes;
+      }
+    } else {
+      gamePhase.value = GamePhase.WAITING;
+      localStoryIndex.value = 0;
+    }
+    
     addChatMessage({
       author: "System",
-      text: `Connected to session ${currentSession.value?.name || sessionId}`,
+      text: `Connected to session ${currentSession.value.name}`,
       type: "system",
     });
-
-    // Save session state
+    
+    // Save the current state to localStorage for this user
     savePersistedState();
-
-    // TODO: Implement WebSocket connection to Go backend
-    console.log("TODO: Connect to backend session:", sessionId);
+    
+    // Establish WebSocket connection
+    connectWebSocket(sessionId);
+    
+    console.log("✅ Connected to session:", sessionId);
   }
 
   function disconnectFromSession() {
     isConnected.value = false;
+
+    // Close WebSocket connection
+    disconnectWebSocket();
 
     // Only clear local connection state, preserve room data for reconnection
     // The session data stays in localStorage so user can rejoin later
@@ -529,8 +550,7 @@ export const useGameStore = defineStore("game", () => {
       type: "system",
     });
 
-    // TODO: Close WebSocket connection
-    console.log("TODO: Disconnect from backend");
+    console.log("Disconnected from backend");
   }
 
   // New functions for backend integration
@@ -581,6 +601,14 @@ export const useGameStore = defineStore("game", () => {
           position: { x: 400, y: 400 },
           isReady: true,
         }));
+        
+        // Set current player to the one that just joined
+        const joinedPlayer = players.value.find(p => p.name === playerName);
+        if (joinedPlayer) {
+          currentPlayer.value = joinedPlayer;
+          localPlayerId.value = joinedPlayer.id;
+          localStorage.setItem("localPlayerId", joinedPlayer.id);
+        }
       }
 
       return Promise.resolve();
@@ -590,7 +618,7 @@ export const useGameStore = defineStore("game", () => {
     }
   }
 
-  async function createSession(sessionName: string, stories: Story[]) {
+  async function createSession(sessionName: string, stories: Story[], creatorName?: string) {
     console.log("Creating session", sessionName, "with stories", stories);
 
     try {
@@ -624,6 +652,15 @@ export const useGameStore = defineStore("game", () => {
         persistentVotes: {},
         requiredPlayers: [],
       };
+      
+      // Initialize empty players array since session is just created
+      players.value = [];
+      
+      // If creator name is provided, we'll set them as current player after joining
+      if (creatorName) {
+        // Join the creator to the session
+        await joinSession(sessionData.sessionId, creatorName);
+      }
 
       // Save session state
       savePersistedState();
@@ -652,6 +689,287 @@ export const useGameStore = defineStore("game", () => {
       text: "Logged out successfully",
       type: "system",
     });
+  }
+
+  // WebSocket functions
+  function connectWebSocket(sessionId: string) {
+    if (wsConnection.value) {
+      wsConnection.value.close();
+    }
+
+    const wsUrl = `ws://localhost:8080/ws?sessionId=${sessionId}`;
+    console.log("Connecting to WebSocket:", wsUrl);
+    
+    wsConnection.value = new WebSocket(wsUrl);
+    
+    wsConnection.value.onopen = () => {
+      console.log("✅ WebSocket connected");
+      addChatMessage({
+        author: "System",
+        text: "Real-time connection established",
+        type: "system",
+      });
+    };
+    
+    wsConnection.value.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        handleWebSocketMessage(message);
+      } catch (error) {
+        console.error("Error parsing WebSocket message:", error);
+      }
+    };
+    
+    wsConnection.value.onclose = () => {
+      console.log("WebSocket disconnected");
+      addChatMessage({
+        author: "System",
+        text: "Real-time connection lost",
+        type: "system",
+      });
+    };
+    
+    wsConnection.value.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      addChatMessage({
+        author: "System",
+        text: "Connection error occurred",
+        type: "system",
+      });
+    };
+  }
+
+  function disconnectWebSocket() {
+    if (wsConnection.value) {
+      wsConnection.value.close();
+      wsConnection.value = null;
+    }
+  }
+
+  function handleWebSocketMessage(message: Record<string, unknown>) {
+    console.log("Received WebSocket message:", message);
+    
+    switch (message.type) {
+      case "player_joined":
+        handlePlayerJoined(message);
+        break;
+      case "player_left":
+        handlePlayerLeft(message);
+        break;
+      case "players_updated":
+        handlePlayersUpdated(message);
+        break;
+      case "vote_cast":
+        handleVoteCast(message);
+        break;
+      case "votes_revealed":
+        handleVotesRevealed(message);
+        break;
+      case "chat_message":
+        handleChatMessage(message);
+        break;
+      default:
+        console.log("Unknown WebSocket message type:", message.type);
+    }
+  }
+
+  function handlePlayerJoined(message: Record<string, unknown>) {
+    const session = message.session as Record<string, unknown>;
+    
+    if (session && session.players) {
+      const sessionPlayers = session.players as string[];
+      console.log(`Players updated via WebSocket:`, sessionPlayers);
+      
+      // Update players list
+      const newPlayers = sessionPlayers.map((name: string) => ({
+        id: name,
+        name: name,
+        character: "mage",
+        emoji: "🧙‍♂️",
+        hasVoted: false,
+        position: { x: 400, y: 400 },
+        isReady: true,
+      }));
+      
+      // Preserve current player reference
+      const currentPlayerId = currentPlayer.value?.id;
+      players.value = newPlayers;
+      
+      // Restore current player reference
+      if (currentPlayerId) {
+        const updatedCurrentPlayer = players.value.find(p => p.id === currentPlayerId);
+        if (updatedCurrentPlayer) {
+          currentPlayer.value = updatedCurrentPlayer;
+        }
+      }
+      
+      // Update required players
+      if (currentSession.value) {
+        currentSession.value.requiredPlayers = sessionPlayers;
+      }
+      
+      // Add system message
+      addChatMessage({
+        author: "System",
+        text: `Player joined the tavern`,
+        type: "system",
+      });
+      
+      // Save updated state
+      savePersistedState();
+    }
+  }
+
+  function handlePlayerLeft(message: Record<string, unknown>) {
+    const playerName = message.playerName as string;
+    const sessionPlayers = message.players as string[];
+    
+    if (playerName && sessionPlayers) {
+      console.log(`Player ${playerName} left the session`);
+      
+      // Update players list
+      const newPlayers = sessionPlayers.map((name: string) => ({
+        id: name,
+        name: name,
+        character: "mage",
+        emoji: "🧙‍♂️",
+        hasVoted: false,
+        position: { x: 400, y: 400 },
+        isReady: true,
+      }));
+      
+      // Preserve current player reference
+      const currentPlayerId = currentPlayer.value?.id;
+      players.value = newPlayers;
+      
+      // Restore current player reference if they're still in the session
+      if (currentPlayerId) {
+        const updatedCurrentPlayer = players.value.find(p => p.id === currentPlayerId);
+        if (updatedCurrentPlayer) {
+          currentPlayer.value = updatedCurrentPlayer;
+        }
+      }
+      
+      // Update required players
+      if (currentSession.value) {
+        currentSession.value.requiredPlayers = sessionPlayers;
+      }
+      
+      // Add system message
+      addChatMessage({
+        author: "System",
+        text: `${playerName} left the tavern`,
+        type: "system",
+      });
+      
+      // Save updated state
+      savePersistedState();
+    }
+  }
+
+  function handlePlayersUpdated(message: Record<string, unknown>) {
+    const sessionPlayers = message.players as string[];
+    
+    if (sessionPlayers) {
+      console.log("Players list updated:", sessionPlayers);
+      
+      // Update players list
+      const newPlayers = sessionPlayers.map((name: string) => ({
+        id: name,
+        name: name,
+        character: "mage",
+        emoji: "🧙‍♂️",
+        hasVoted: false,
+        position: { x: 400, y: 400 },
+        isReady: true,
+      }));
+      
+      // Preserve current player reference
+      const currentPlayerId = currentPlayer.value?.id;
+      players.value = newPlayers;
+      
+      // Restore current player reference
+      if (currentPlayerId) {
+        const updatedCurrentPlayer = players.value.find(p => p.id === currentPlayerId);
+        if (updatedCurrentPlayer) {
+          currentPlayer.value = updatedCurrentPlayer;
+        }
+      }
+      
+      // Update required players
+      if (currentSession.value) {
+        currentSession.value.requiredPlayers = sessionPlayers;
+      }
+      
+      // Save updated state
+      savePersistedState();
+    }
+  }
+
+  function handleVoteCast(message: Record<string, unknown>) {
+    const playerName = message.playerName as string;
+    const vote = message.vote as string;
+    
+    if (playerName && vote) {
+      console.log(`Player ${playerName} cast vote: ${vote}`);
+      
+      // Update player's vote status
+      const player = players.value.find(p => p.name === playerName);
+      if (player) {
+        player.hasVoted = true;
+        player.vote = vote;
+      }
+      
+      // Add system message
+      addChatMessage({
+        author: "System",
+        text: `${playerName} cast their vote`,
+        type: "system",
+      });
+    }
+  }
+
+  function handleVotesRevealed(message: Record<string, unknown>) {
+    const votes = message.votes as Record<string, string>;
+    
+    if (votes) {
+      console.log("Votes revealed:", votes);
+      
+      // Update game phase
+      gamePhase.value = GamePhase.REVEALED;
+      
+      if (currentSession.value) {
+        currentSession.value.revealVotes = true;
+      }
+      
+      // Add system message
+      addChatMessage({
+        author: "System",
+        text: "All votes have been revealed!",
+        type: "system",
+      });
+    }
+  }
+
+  function handleChatMessage(message: Record<string, unknown>) {
+    const author = message.author as string;
+    const text = message.text as string;
+    
+    if (author && text) {
+      addChatMessage({
+        author: author,
+        text: text,
+        type: "message",
+      });
+    }
+  }
+
+  function sendWebSocketMessage(message: Record<string, unknown>) {
+    if (wsConnection.value && wsConnection.value.readyState === WebSocket.OPEN) {
+      wsConnection.value.send(JSON.stringify(message));
+    } else {
+      console.warn("WebSocket not connected, cannot send message:", message);
+    }
   }
 
   return {
@@ -703,5 +1021,8 @@ export const useGameStore = defineStore("game", () => {
     updatePlayerVotedStatus,
     getAvailableRoomsUtil,
     deleteRoomUtil,
+    connectWebSocket,
+    disconnectWebSocket,
+    sendWebSocketMessage,
   };
 });

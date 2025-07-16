@@ -283,7 +283,7 @@
                                 },
                             ]"
                             @click="selectCard(card.value)"
-                            :disabled="gameStore.gamePhase !== 'voting'"
+                        :disabled="gameStore.gamePhase !== GamePhase.VOTING"
                             :title="card.description"
                         >
                             {{ card.label }}
@@ -312,7 +312,7 @@
                 <div class="game-controls">
                     <button
                         v-if="
-                            gameStore.gamePhase === 'voting' &&
+                            gameStore.gamePhase === GamePhase.VOTING &&
                             !gameStore.allStoriesVotedByEveryone &&
                             gameStore.currentSession
                         "
@@ -501,7 +501,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
-import { useGameStore } from "@/stores/gameStore";
+import { useGameStore, GamePhase } from "@/stores/gameStore";
 import { GameManager } from "@/game/GameManager";
 
 // Global store
@@ -566,8 +566,28 @@ watch(
     () => gameStore.players,
     (newPlayers, oldPlayers) => {
         console.log("Players updated:", newPlayers.length, "players");
-        // Avoid excessive automatic synchronization
-        // Synchronization is done manually during important actions
+        
+        // Sync new players to Phaser scene
+        if (newPlayers.length > 0) {
+            // Clear existing players in Phaser and re-add them
+            if (oldPlayers) {
+                oldPlayers.forEach(player => {
+                    if (!newPlayers.find(p => p.id === player.id)) {
+                        console.log("Removing player from Phaser:", player.id);
+                        gameManager.removePlayer(player.id);
+                    }
+                });
+            }
+            
+            // Add new players to Phaser
+            newPlayers.forEach(player => {
+                const wasAlreadyThere = oldPlayers?.find(p => p.id === player.id);
+                if (!wasAlreadyThere) {
+                    console.log("Adding new player to Phaser:", player.id);
+                    gameManager.addPlayer(player.id, player);
+                }
+            });
+        }
     },
     { deep: true },
 );
@@ -575,7 +595,7 @@ watch(
 watch(
     () => gameStore.gamePhase,
     (newPhase) => {
-        if (newPhase === "revealed") {
+        if (newPhase === GamePhase.REVEALED) {
             // Global reveal - show votes for all stories
             setTimeout(() => {
                 const votes: { [key: string]: string } = {};
@@ -592,7 +612,7 @@ watch(
                     gameManager.revealAllVotes(votes);
                 }
             }, 500);
-        } else if (newPhase === "voting") {
+        } else if (newPhase === GamePhase.VOTING) {
             gameManager.resetTable();
         }
     },

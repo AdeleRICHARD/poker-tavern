@@ -150,14 +150,21 @@ async function handleLogin() {
             const newSessionId = await gameStore.createSession(
                 `${playerName.value}'s Session`,
                 [],
+                playerName.value.trim()
             );
             await gameStore.connectToSession(newSessionId);
         }
 
         emit("loginSuccess");
     } catch (error) {
-        errorMessage.value = "Failed to connect. Please try again.";
         console.error("Login error:", error);
+        if (error.message.includes('Session not found')) {
+            errorMessage.value = "Session not found. Please check the Session ID or create a new session.";
+        } else if (error.message.includes('404')) {
+            errorMessage.value = "Session not found. Please verify the Session ID.";
+        } else {
+            errorMessage.value = "Failed to connect. Please try again.";
+        }
     } finally {
         isLoading.value = false;
     }
@@ -174,6 +181,7 @@ async function handleCreateSession() {
         const newSessionId = await gameStore.createSession(
             newSessionName.value.trim(),
             [],
+            playerName.value.trim()
         );
 
         // Connect to the new session
