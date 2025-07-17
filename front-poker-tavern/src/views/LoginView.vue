@@ -158,10 +158,14 @@ async function handleLogin() {
         emit("loginSuccess");
     } catch (error) {
         console.error("Login error:", error);
-        if (error.message.includes('Session not found')) {
-            errorMessage.value = "Session not found. Please check the Session ID or create a new session.";
-        } else if (error.message.includes('404')) {
-            errorMessage.value = "Session not found. Please verify the Session ID.";
+        if (error instanceof Error) {
+            if (error.message.includes('Session not found')) {
+                errorMessage.value = "Session not found. Please check the Session ID or create a new session.";
+            } else if (error.message.includes('404')) {
+                errorMessage.value = "Session not found. Please verify the Session ID.";
+            } else {
+                errorMessage.value = "Failed to connect. Please try again.";
+            }
         } else {
             errorMessage.value = "Failed to connect. Please try again.";
         }

@@ -2,15 +2,20 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"net/url"
+	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/andygrunwald/go-jira"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/joho/godotenv"
 )
 
 // Session represents a Planning Poker session.
@@ -27,6 +32,7 @@ type Story struct {
 	ID          string `json:"id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
+	JiraKey     string `json:"jiraKey,omitempty"`
 }
 
 // ChatMessage represents a chat entry.
@@ -34,6 +40,14 @@ type ChatMessage struct {
 	Author    string `json:"author"`
 	Text      string `json:"text"`
 	Timestamp string `json:"timestamp"`
+}
+
+// JiraConnection stores JIRA connection info per session
+type JiraConnection struct {
+	JiraURL   string
+	Username  string
+	APIToken  string
+	SessionID string
 }
 
 // sessions stores the created sessions in memory.
@@ -44,6 +58,10 @@ var (
 	// wsHubs manages WebSocket hubs per session for real-time broadcasting.
 	wsHubs      = make(map[string]*Hub)
 	wsHubsMutex = &sync.Mutex{}
+
+	// JIRA connections per session
+	jiraConnections      = make(map[string]*JiraConnection)
+	jiraConnectionsMutex = &sync.Mutex{}
 )
 
 // Hub maintains the set of active clients and broadcasts messages to them.
@@ -108,12 +126,27 @@ func getOrCreateHub(sessionID string) *Hub {
 }
 
 func main() {
+	// Load environment variables from .env file
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error loading .env file")
+	}
+
 	// Define endpoints.
 	http.HandleFunc("/health", healthHandler)                  // Health check endpoint.
 	http.HandleFunc("/session", handleSession)                 // POST to create, GET to retrieve session.
 	http.HandleFunc("/session/join", joinSessionHandler)       // POST request to join a session.
 	http.HandleFunc("/session/import-jira", importJiraHandler) // POST request to import Jira issues.
 	http.HandleFunc("/ws", wsHandler)                          // WebSocket endpoint for real-time updates (including chat).
+	
+	// JIRA integration endpoints
+	http.HandleFunc("/api/jira/auth-url", jiraAuthUrlHandler)   // Get JIRA OAuth URL
+	http.HandleFunc("/auth/jira/callback", jiraCallbackHandler) // JIRA OAuth callback
+	http.HandleFunc("/jira/status", jiraStatusHandler)         // JIRA connection status
+	http.HandleFunc("/jira/search", jiraSearchHandler)         // JIRA issue search
+	
+	// Demo OAuth endpoint for testing popup flow
+	http.HandleFunc("/demo/oauth", demoOAuthHandler)
 
 	// Wrap DefaultServeMux with CORS middleware.
 	handler := corsMiddleware(http.DefaultServeMux)
@@ -249,6 +282,250 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(session)
 }
 
+// jiraAuthUrlHandler returns the OAuth URL for JIRA authentication (used by popup flow)
+func jiraAuthUrlHandler(w http.ResponseWriter, r *http.Request) {
+	// Expect a session ID as a query parameter
+	sessionID := r.URL.Query().Get("sessionId")
+	if sessionID == "" {
+		http.Error(w, "Session ID required", http.StatusBadRequest)
+		return
+	}
+
+	// OAuth 2.0 configuration - get from environment variables
+	clientID := os.Getenv("JIRA_CLIENT_ID")
+	clientSecret := os.Getenv("JIRA_CLIENT_SECRET")
+	demoMode := os.Getenv("DEMO_MODE") == "true"
+	
+	// Check if demo mode is enabled
+	if demoMode {
+		// Return demo OAuth URL for testing popup flow
+		demoURL := fmt.Sprintf("http://localhost:8080/demo/oauth?sessionId=%s", sessionID)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"authUrl": demoURL,
+			"demo": "true",
+		})
+		return
+	}
+	
+	if clientID == "" || clientSecret == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "JIRA OAuth not configured",
+			"message": "Please set JIRA_CLIENT_ID and JIRA_CLIENT_SECRET environment variables",
+			"setup_instructions": "Run ./setup_oauth.sh to configure OAuth credentials or set DEMO_MODE=true",
+		})
+		return
+	}
+	redirectURI := "http://localhost:8080/auth/jira/callback"
+	scopes := "read:me read:account"
+
+	// Generate state parameter for security (store sessionID in state)
+	state := fmt.Sprintf("session_%s", sessionID)
+
+	// Build OAuth authorization URL with proper encoding
+	authURL := fmt.Sprintf(
+		"https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=%s&scope=%s&redirect_uri=%s&state=%s&response_type=code&prompt=consent",
+		url.QueryEscape(clientID),
+		url.QueryEscape(scopes),
+		url.QueryEscape(redirectURI),
+		url.QueryEscape(state),
+	)
+
+	// Return the OAuth URL as JSON
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"authUrl": authURL,
+	})
+}
+
+// jiraCallbackHandler handles OAuth 2.0 callback from JIRA
+func jiraCallbackHandler(w http.ResponseWriter, r *http.Request) {
+    // Log the full request for debugging
+    log.Printf("OAuth callback received: %s", r.URL.String())
+    log.Printf("Query parameters: %v", r.URL.Query())
+    
+    // Extract code and state from query
+    code := r.URL.Query().Get("code")
+    state := r.URL.Query().Get("state")
+    
+    log.Printf("Code: '%s', State: '%s'", code, state)
+    
+    if code == "" || state == "" {
+        // Check if there's an error parameter
+        errorParam := r.URL.Query().Get("error")
+        errorDesc := r.URL.Query().Get("error_description")
+        
+        log.Printf("OAuth error - Code: '%s', State: '%s', Error: '%s', Description: '%s'", 
+            code, state, errorParam, errorDesc)
+        
+        if errorParam != "" {
+            http.Error(w, fmt.Sprintf("OAuth error: %s - %s", errorParam, errorDesc), http.StatusBadRequest)
+        } else {
+            http.Error(w, "Code or state parameter missing", http.StatusBadRequest)
+        }
+        return
+    }
+
+    // Parse state to retrieve session ID
+    parts := strings.Split(state, "_")
+    if len(parts) != 2 {
+        http.Error(w, "Invalid state parameter", http.StatusBadRequest)
+        return
+    }
+    sessionID := parts[1]
+
+    // Exchange code for access token
+    clientID := os.Getenv("JIRA_CLIENT_ID")
+    clientSecret := os.Getenv("JIRA_CLIENT_SECRET")
+    if clientID == "" || clientSecret == "" {
+        http.Error(w, "JIRA OAuth not configured", http.StatusInternalServerError)
+        return
+    }
+    
+    data := url.Values{}
+    data.Set("grant_type", "authorization_code")
+    data.Set("client_id", clientID)
+    data.Set("client_secret", clientSecret)
+    data.Set("code", code)
+    data.Set("redirect_uri", "http://localhost:8080/auth/jira/callback")
+
+    tokenResp, err := http.Post(
+        "https://auth.atlassian.com/oauth/token",
+        "application/x-www-form-urlencoded",
+        strings.NewReader(data.Encode()))
+
+    if err != nil {
+        http.Error(w, "Failed to exchange code: "+err.Error(), http.StatusInternalServerError)
+        return
+    }
+    defer tokenResp.Body.Close()
+
+    var tokenData struct {
+        AccessToken string `json:"access_token"`
+        Scope       string `json:"scope"`
+        ExpiresIn   int    `json:"expires_in"`
+        TokenType   string `json:"token_type"`
+    }
+    if err := json.NewDecoder(tokenResp.Body).Decode(&tokenData); err != nil {
+        http.Error(w, "Invalid token response", http.StatusInternalServerError)
+        return
+    }
+
+    // Fetch user information from Atlassian API
+    userReq, err := http.NewRequest("GET", "https://api.atlassian.com/me", nil)
+    if err != nil {
+        http.Error(w, "Failed to create user request", http.StatusInternalServerError)
+        return
+    }
+    userReq.Header.Set("Authorization", "Bearer "+tokenData.AccessToken)
+    
+    userResp, err := http.DefaultClient.Do(userReq)
+    if err != nil {
+        http.Error(w, "Failed to fetch user info", http.StatusInternalServerError)
+        return
+    }
+    defer userResp.Body.Close()
+    
+    var userData struct {
+        AccountID string `json:"account_id"`
+        Name      string `json:"name"`
+        Email     string `json:"email"`
+        Picture   string `json:"picture"`
+    }
+    if err := json.NewDecoder(userResp.Body).Decode(&userData); err != nil {
+        http.Error(w, "Failed to decode user info", http.StatusInternalServerError)
+        return
+    }
+
+    // Save the token information for the relevant session
+    jiraConnectionsMutex.Lock()
+    jiraConnections[sessionID] = &JiraConnection{
+        SessionID: sessionID,
+        APIToken:  tokenData.AccessToken, // Use access token for API requests
+        Username:  userData.Email,
+        JiraURL:   "your-jira-instance", // Usually dynamically determined
+    }
+    jiraConnectionsMutex.Unlock()
+
+    // Create user data for postMessage
+    userDataJSON, _ := json.Marshal(userData)
+
+    // Send success message to parent window and close popup
+    w.Header().Set("Content-Type", "text/html")
+    w.Write([]byte(fmt.Sprintf(`
+        <html>
+        <body>
+        <script>
+            window.opener.postMessage({
+                type: 'JIRA_AUTH_SUCCESS',
+                user: %s
+            }, 'http://localhost:5173');
+            window.close();
+        </script>
+        <p>JIRA connection successful! You can close this window.</p>
+        </body>
+        </html>
+    `, userDataJSON)))
+}
+
+// jiraStatusHandler checks if a session is connected to JIRA
+func jiraStatusHandler(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.URL.Query().Get("sessionId")
+	if sessionID == "" {
+		http.Error(w, "Session ID required", http.StatusBadRequest)
+		return
+	}
+
+	jiraConnectionsMutex.Lock()
+	_, connExists := jiraConnections[sessionID]
+	jiraConnectionsMutex.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"connected": connExists,
+	})
+}
+
+// jiraSearchHandler enables searching for issues in JIRA
+func jiraSearchHandler(w http.ResponseWriter, r *http.Request) {
+	// Expect a session ID as a query parameter
+	sessionID := r.URL.Query().Get("sessionId")
+	if sessionID == "" {
+		http.Error(w, "Session ID required", http.StatusBadRequest)
+		return
+	}
+
+	// Validate that the session is connected to JIRA
+	jiraConnectionsMutex.Lock()
+	_, connExists := jiraConnections[sessionID]
+	jiraConnectionsMutex.Unlock()
+	if !connExists {
+		http.Error(w, "JIRA connection not established", http.StatusUnauthorized)
+		return
+	}
+
+	// Simulate JIRA search: Decode the JQL query param
+	jql := r.URL.Query().Get("q")
+	if jql == "" {
+		http.Error(w, "JQL query param required", http.StatusBadRequest)
+		return
+	}
+
+	// Dummy issues returned
+	mockedIssues := []Story{
+		{ID: "JIRA-1", Title: "Issue 1", Description: "", JiraKey: "JIRA-1"},
+		{ID: "JIRA-2", Title: "Issue 2", Description: "", JiraKey: "JIRA-2"},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"issues": mockedIssues,
+	})
+
+}
+
 // importJiraHandler fetches issues from Jira and adds them as stories to the session.
 func importJiraHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -310,6 +587,7 @@ func importJiraHandler(w http.ResponseWriter, r *http.Request) {
 			ID:          storyID,
 			Title:       issue.Key + ": " + issue.Fields.Summary,
 			Description: issue.Fields.Description,
+			JiraKey:     issue.Key,
 		}
 		newStories = append(newStories, story)
 	}
@@ -423,6 +701,135 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
+}
+
+// demoOAuthHandler simulates OAuth flow for testing popup mechanism
+func demoOAuthHandler(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.URL.Query().Get("sessionId")
+	if sessionID == "" {
+		http.Error(w, "Session ID required", http.StatusBadRequest)
+		return
+	}
+
+	// Create mock user data
+	mockUserData := map[string]interface{}{
+		"account_id": "demo-user-123",
+		"name":       "Demo User",
+		"email":      "demo@example.com",
+		"picture":    "https://avatar.atlassian.com/demo.png",
+	}
+
+	// Save mock connection
+	jiraConnectionsMutex.Lock()
+	jiraConnections[sessionID] = &JiraConnection{
+		SessionID: sessionID,
+		APIToken:  "demo-token-123",
+		Username:  "demo@example.com",
+		JiraURL:   "https://demo.atlassian.net",
+	}
+	jiraConnectionsMutex.Unlock()
+
+	// Create user data JSON
+	userDataJSON, _ := json.Marshal(mockUserData)
+
+	// Return HTML page that simulates OAuth success
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(fmt.Sprintf(`
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<title>Demo OAuth - Planning Poker Tavern</title>
+			<style>
+				body {
+					font-family: Arial, sans-serif;
+					background: linear-gradient(135deg, #1a1a2e 0%%, #16213e 100%%);
+					color: white;
+					padding: 2rem;
+					text-align: center;
+					min-height: 100vh;
+					display: flex;
+					flex-direction: column;
+					justify-content: center;
+					align-items: center;
+				}
+				.container {
+					background: rgba(44, 62, 80, 0.8);
+					border: 2px solid #8b4513;
+					border-radius: 12px;
+					padding: 2rem;
+					max-width: 400px;
+					margin: 0 auto;
+				}
+				.success-icon {
+					font-size: 3rem;
+					margin-bottom: 1rem;
+				}
+				.button {
+					background: linear-gradient(145deg, #27ae60, #229954);
+					color: white;
+					border: none;
+					padding: 1rem 2rem;
+					border-radius: 8px;
+					cursor: pointer;
+					font-size: 1rem;
+					margin-top: 1rem;
+					transition: all 0.3s ease;
+				}
+				.button:hover {
+					background: linear-gradient(145deg, #229954, #1e8449);
+					box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
+				}
+				.countdown {
+					color: #f39c12;
+					margin-top: 1rem;
+					font-size: 0.9rem;
+				}
+			</style>
+		</head>
+		<body>
+			<div class="container">
+				<div class="success-icon">🎉</div>
+				<h1>Demo OAuth Success!</h1>
+				<p>You have successfully "authenticated" with the demo JIRA integration.</p>
+				<p><strong>User:</strong> Demo User (demo@example.com)</p>
+				<p>This popup will close automatically and notify the parent window.</p>
+				<button class="button" onclick="completeAuth()">✅ Complete Authentication</button>
+				<div class="countdown">Auto-closing in <span id="countdown">5</span> seconds...</div>
+			</div>
+
+			<script>
+				let countdown = 5;
+				const countdownElement = document.getElementById('countdown');
+				
+				function updateCountdown() {
+					countdown--;
+					if (countdownElement) {
+						countdownElement.textContent = countdown;
+					}
+					if (countdown <= 0) {
+						completeAuth();
+					}
+				}
+				
+				function completeAuth() {
+					try {
+						window.opener.postMessage({
+							type: 'JIRA_AUTH_SUCCESS',
+							user: %s
+						}, 'http://localhost:5173');
+						window.close();
+					} catch (error) {
+						console.error('Error sending message:', error);
+						window.close();
+					}
+				}
+				
+				// Start countdown
+				setInterval(updateCountdown, 1000);
+			</script>
+		</body>
+		</html>
+	`, userDataJSON)))
 }
 
 // corsMiddleware adds CORS headers to every response.

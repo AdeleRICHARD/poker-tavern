@@ -15,6 +15,7 @@ A gamified Planning Poker tool with a WoW-style medieval tavern interface, desig
 - **Hidden/reveal voting**: Cards stay face down until reveal
 - **Integrated chat**: Real-time discussion during estimation
 - **Multi-player**: Up to 8 players around the table
+- **JIRA Integration**: Import tickets directly from JIRA for estimation
 
 ### 🔧 Technical Features
 - **Vue 3 interface**: Reactive components with TypeScript
@@ -120,7 +121,7 @@ Colors and styles are in `.vue` files (`<style>` sections).
 - [ ] Session persistence
 
 ### Phase 3 (Integrations)
-- [ ] Jira API for automatic ticket import
+- [x] Jira API for automatic ticket import
 - [ ] Export results to external tools
 - [ ] User authentication
 

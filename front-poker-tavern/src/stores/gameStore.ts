@@ -677,6 +677,90 @@ export const useGameStore = defineStore("game", () => {
     console.log("TODO: Authenticate player", credentials);
   }
 
+  // Function to add stories directly to session (used for OAuth-based JIRA integration)
+  function addStoriesToSession(stories: Story[]) {
+    if (!currentSession.value) {
+      throw new Error("No active session to add stories to");
+    }
+
+    // Add stories to current session
+    currentSession.value.stories = [...currentSession.value.stories, ...stories];
+    
+    // Save updated state
+    savePersistedState();
+
+    // Add system message
+    addChatMessage({
+      author: "System",
+      text: `Added ${stories.length} stories to session`,
+      type: "system",
+    });
+
+    console.log(`Added ${stories.length} stories to session`);
+  }
+
+  // JIRA integration (legacy method for basic auth)
+  async function importJiraIssues(jiraConfig: {
+    jiraUrl: string;
+    username: string;
+    apiToken: string;
+    jql: string;
+  }) {
+    if (!currentSession.value) {
+      throw new Error("No active session to import issues into");
+    }
+
+    console.log("Importing JIRA issues with config:", {
+      ...jiraConfig,
+      apiToken: "***hidden***"
+    });
+
+    try {
+      const response = await fetch("http://localhost:8080/session/import-jira", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId: currentSession.value.id,
+          jiraUrl: jiraConfig.jiraUrl,
+          username: jiraConfig.username,
+          apiToken: jiraConfig.apiToken,
+          jql: jiraConfig.jql,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to import JIRA issues: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("JIRA import result:", result);
+
+      // Update current session with imported stories
+      if (result.stories && currentSession.value) {
+        currentSession.value.stories = [...currentSession.value.stories, ...result.stories];
+        savePersistedState();
+      }
+
+      addChatMessage({
+        author: "System",
+        text: `Successfully imported ${result.imported} JIRA issues`,
+        type: "system",
+      });
+
+      return result;
+    } catch (error) {
+      console.error("Error importing JIRA issues:", error);
+      addChatMessage({
+        author: "System",
+        text: `Failed to import JIRA issues: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        type: "system",
+      });
+      throw error;
+    }
+  }
+
   function logout() {
     disconnectFromSession();
     currentPlayer.value = null;
@@ -767,6 +851,9 @@ export const useGameStore = defineStore("game", () => {
         break;
       case "chat_message":
         handleChatMessage(message);
+        break;
+      case "stories_imported":
+        handleStoriesImported(message);
         break;
       default:
         console.log("Unknown WebSocket message type:", message.type);
@@ -964,6 +1051,27 @@ export const useGameStore = defineStore("game", () => {
     }
   }
 
+  function handleStoriesImported(message: Record<string, unknown>) {
+    const importedStories = message.stories as Story[];
+    
+    if (importedStories && currentSession.value) {
+      console.log("Stories imported via WebSocket:", importedStories);
+      
+      // Update session with imported stories
+      currentSession.value.stories = [...currentSession.value.stories, ...importedStories];
+      
+      // Save updated state
+      savePersistedState();
+      
+      // Add system message
+      addChatMessage({
+        author: "System",
+        text: `${importedStories.length} JIRA stories imported to session`,
+        type: "system",
+      });
+    }
+  }
+
   function sendWebSocketMessage(message: Record<string, unknown>) {
     if (wsConnection.value && wsConnection.value.readyState === WebSocket.OPEN) {
       wsConnection.value.send(JSON.stringify(message));
@@ -1024,5 +1132,7 @@ export const useGameStore = defineStore("game", () => {
     connectWebSocket,
     disconnectWebSocket,
     sendWebSocketMessage,
+    importJiraIssues,
+    addStoriesToSession,
   };
 });

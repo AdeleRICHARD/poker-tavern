@@ -144,7 +144,8 @@
                     </div>
                 </div>
 
-                <!-- session jira token to make in a component -->
+                <JiraImport />
+                
                 <div v-if="!gameStore.currentSession" class="no-session-notice">
                     <h3>🏠 No Session</h3>
                     <p>
@@ -503,6 +504,7 @@
 import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useGameStore, GamePhase } from "@/stores/gameStore";
 import { GameManager } from "@/game/GameManager";
+import JiraImport from "@/components/JiraImport.vue";
 
 // Global store
 const gameStore = useGameStore();
