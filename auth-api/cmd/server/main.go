@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -123,6 +124,14 @@ func getOrCreateHub(sessionID string) *Hub {
 	go hub.run()
 	wsHubs[sessionID] = hub
 	return hub
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func main() {
@@ -319,7 +328,7 @@ func jiraAuthUrlHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redirectURI := "http://localhost:8080/auth/jira/callback"
-	scopes := "read:me read:account"
+	scopes := "offline_access read:jira-work read:jira-user read:account read:me read:issue:jira read:project:jira"
 
 	// Generate state parameter for security (store sessionID in state)
 	state := fmt.Sprintf("session_%s", sessionID)
@@ -412,6 +421,10 @@ func jiraCallbackHandler(w http.ResponseWriter, r *http.Request) {
         http.Error(w, "Invalid token response", http.StatusInternalServerError)
         return
     }
+    
+    // Log token details for debugging
+    log.Printf("Token received - Type: %s, Expires in: %d seconds", tokenData.TokenType, tokenData.ExpiresIn)
+    log.Printf("Granted scopes: %s", tokenData.Scope)
 
     // Fetch user information from Atlassian API
     userReq, err := http.NewRequest("GET", "https://api.atlassian.com/me", nil)
@@ -499,31 +512,257 @@ func jiraSearchHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Validate that the session is connected to JIRA
 	jiraConnectionsMutex.Lock()
-	_, connExists := jiraConnections[sessionID]
+	conn, connExists := jiraConnections[sessionID]
 	jiraConnectionsMutex.Unlock()
 	if !connExists {
 		http.Error(w, "JIRA connection not established", http.StatusUnauthorized)
 		return
 	}
 
-	// Simulate JIRA search: Decode the JQL query param
-	jql := r.URL.Query().Get("q")
-	if jql == "" {
-		http.Error(w, "JQL query param required", http.StatusBadRequest)
+	// Get search query param
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		http.Error(w, "Query param required", http.StatusBadRequest)
 		return
 	}
 
-	// Dummy issues returned
-	mockedIssues := []Story{
-		{ID: "JIRA-1", Title: "Issue 1", Description: "", JiraKey: "JIRA-1"},
-		{ID: "JIRA-2", Title: "Issue 2", Description: "", JiraKey: "JIRA-2"},
+	// Check if we're in demo mode
+	demoMode := os.Getenv("DEMO_MODE") == "true"
+	if demoMode {
+		// Return demo search results
+		mockedIssues := []Story{
+			{ID: "DEMO-1", Title: "[DEMO] Fix login issue", Description: "Users cannot log in to the application", JiraKey: "DEMO-1"},
+			{ID: "DEMO-2", Title: "[DEMO] Add user profile page", Description: "Create a user profile page with basic info", JiraKey: "DEMO-2"},
+			{ID: "DEMO-3", Title: "[DEMO] Performance optimization", Description: "Improve application loading time", JiraKey: "DEMO-3"},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"issues": mockedIssues,
+		})
+		return
+	}
+
+	// Real JIRA search implementation
+	issues, err := searchJiraIssues(conn, query)
+	if err != nil {
+		log.Printf("JIRA search error: %v", err)
+		http.Error(w, "Failed to search JIRA issues: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"issues": mockedIssues,
+		"issues": issues,
 	})
+}
 
+// searchJiraIssues searches for JIRA issues using the Atlassian API with OAuth token
+func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
+	// Get accessible resources (sites) for the user
+	// Log the token being used for debugging
+	log.Printf("Using access token for API call: %s", conn.APIToken[:20]+"...")
+
+	// Log the request details
+	log.Printf("Making request to accessible-resources endpoint with Authorization header")
+
+	req, err := http.NewRequest("GET", "https://api.atlassian.com/oauth/token/accessible-resources", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+conn.APIToken)
+	req.Header.Set("Accept", "application/json")
+	
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get accessible resources: %v", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Failed to get accessible resources: %d %s", resp.StatusCode, resp.Status)
+		return nil, fmt.Errorf("failed to get accessible resources: %s", resp.Status)
+	}
+	
+	var resources []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		URL  string `json:"url"`
+	}
+	
+	if err := json.NewDecoder(resp.Body).Decode(&resources); err != nil {
+		return nil, fmt.Errorf("failed to decode resources: %v", err)
+	}
+	
+	// Log the accessible resources for debugging
+	log.Printf("Found %d accessible resources:", len(resources))
+	for i, res := range resources {
+		log.Printf("  [%d] ID: %s, Name: %s, URL: %s", i, res.ID, res.Name, res.URL)
+	}
+	
+	if len(resources) == 0 {
+		return nil, fmt.Errorf("no accessible JIRA resources found")
+	}
+	
+	// Use the first resource (most common case)
+	resource := resources[0]
+	log.Printf("Using resource - ID: %s, Name: %s, URL: %s", resource.ID, resource.Name, resource.URL)
+	
+	// Build JQL query - handle different input types
+	jql := query
+	
+	// Check if the query is a JIRA URL and extract relevant info
+	if strings.Contains(query, "atlassian.net") {
+		// Extract project key if possible from URL like https://fcms.atlassian.net/jira/software/projects/IMMO/boards/280?selectedIssue=IMMO-5295
+		if strings.Contains(query, "selectedIssue=") {
+			// Extract the issue key from selectedIssue parameter
+			parts := strings.Split(query, "selectedIssue=")
+			if len(parts) > 1 {
+				issueKey := strings.Split(parts[1], "&")[0] // Remove any additional params
+				jql = fmt.Sprintf("key = %s", issueKey)
+			}
+		} else if strings.Contains(query, "/projects/") {
+			// Extract project key from URL path
+			parts := strings.Split(query, "/projects/")
+			if len(parts) > 1 {
+				projectKey := strings.Split(parts[1], "/")[0]
+				jql = fmt.Sprintf("project = %s", projectKey)
+			}
+		} else {
+			// Fallback to simple recent issues query
+			jql = "ORDER BY updated DESC"
+		}
+	} else if !strings.Contains(query, "=") && !strings.Contains(query, "~") && !strings.Contains(query, "ORDER BY") {
+		// Simple text search - convert to JQL
+		jql = fmt.Sprintf("text ~ \"%s\" OR summary ~ \"%s\" OR description ~ \"%s\"", query, query, query)
+	}
+	
+	log.Printf("Original query: %s", query)
+	log.Printf("Generated JQL: %s", jql)
+	
+	// Search for issues using JIRA REST API
+	// Try using Atlassian API gateway with cloud ID instead of direct instance URL
+	searchURL := fmt.Sprintf("https://api.atlassian.com/ex/jira/%s/rest/api/3/search", resource.ID)
+	
+	// Prepare search request
+	searchData := map[string]interface{}{
+		"jql":         jql,
+		"maxResults": 20,
+		"fields": []string{
+			"key",
+			"summary",
+			"description",
+			"issuetype",
+			"status",
+			"priority",
+		},
+	}
+	
+	searchJSON, err := json.Marshal(searchData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal search data: %v", err)
+	}
+	
+	searchReq, err := http.NewRequest("POST", searchURL, strings.NewReader(string(searchJSON)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create search request: %v", err)
+	}
+	
+	searchReq.Header.Set("Authorization", "Bearer "+conn.APIToken)
+	searchReq.Header.Set("Accept", "application/json")
+	searchReq.Header.Set("Content-Type", "application/json")
+	// Add cloud ID context for OAuth
+	searchReq.Header.Set("X-Atlassian-Token", "no-check")
+	searchReq.Header.Set("X-ExperimentalApi", "opt-in")
+	
+	// Log the complete request details
+	log.Printf("=== JIRA API REQUEST DETAILS ===")
+	log.Printf("Method: %s", searchReq.Method)
+	log.Printf("URL: %s", searchReq.URL.String())
+	log.Printf("Headers:")
+	for name, values := range searchReq.Header {
+		for _, value := range values {
+			if name == "Authorization" {
+				log.Printf("  %s: Bearer %s...", name, value[7:27]) // Show first 20 chars of token
+			} else {
+				log.Printf("  %s: %s", name, value)
+			}
+		}
+	}
+	log.Printf("Request Body: %s", string(searchJSON))
+	log.Printf("=================================")
+	
+	searchResp, err := http.DefaultClient.Do(searchReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search issues: %v", err)
+	}
+	defer searchResp.Body.Close()
+	
+	if searchResp.StatusCode != http.StatusOK {
+		// Read the error response body
+		errorBody, _ := io.ReadAll(searchResp.Body)
+		log.Printf("JIRA search request failed: %d %s, URL: %s", searchResp.StatusCode, searchResp.Status, searchURL)
+		log.Printf("JQL query: %s", jql)
+		log.Printf("Error response: %s", string(errorBody))
+		return nil, fmt.Errorf("search request failed: %s - %s", searchResp.Status, string(errorBody))
+	}
+	
+	// Parse search results
+	var searchResults struct {
+		Issues []struct {
+			Key    string `json:"key"`
+			Fields struct {
+				Summary     string      `json:"summary"`
+				Description interface{} `json:"description"` // Can be string or complex object
+				IssueType   struct {
+					Name string `json:"name"`
+				} `json:"issuetype"`
+				Status struct {
+					Name string `json:"name"`
+				} `json:"status"`
+				Priority struct {
+					Name string `json:"name"`
+				} `json:"priority"`
+			} `json:"fields"`
+		} `json:"issues"`
+		Total int `json:"total"`
+	}
+	
+	if err := json.NewDecoder(searchResp.Body).Decode(&searchResults); err != nil {
+		return nil, fmt.Errorf("failed to decode search results: %v", err)
+	}
+	
+	// Convert to Story objects
+	var stories []Story
+	for _, issue := range searchResults.Issues {
+		// Handle description field which can be string or complex object
+		var description string
+		if issue.Fields.Description != nil {
+			switch desc := issue.Fields.Description.(type) {
+			case string:
+				description = desc
+			case map[string]interface{}:
+				// Jira rich text format - try to extract plain text
+				if descBytes, err := json.Marshal(desc); err == nil {
+					description = "Rich text: " + string(descBytes)[:min(200, len(descBytes))] + "..."
+				} else {
+					description = "[Rich text content]"
+				}
+			default:
+				description = "[Complex content]"
+			}
+		}
+		
+		story := Story{
+			ID:          uuid.New().String(),
+			Title:       issue.Key + ": " + issue.Fields.Summary,
+			Description: description,
+			JiraKey:     issue.Key,
+		}
+		stories = append(stories, story)
+	}
+	
+	return stories, nil
 }
 
 // importJiraHandler fetches issues from Jira and adds them as stories to the session.

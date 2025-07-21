@@ -30,6 +30,10 @@
                 </button>
             </div>
             
+            <div v-if="searchError" class="search-error">
+                <p>❌ {{ searchError }}</p>
+            </div>
+            
             <div v-if="searchResults.length > 0" class="search-results">
                 <div v-for="issue in searchResults" :key="issue.jiraKey" class="issue-item">
                     <div class="issue-header">
@@ -54,6 +58,7 @@ const isConnected = ref(false);
 const isLoading = ref(false);
 const searchQuery = ref('');
 const searchResults = ref<any[]>([]);
+const searchError = ref<string>('');
 const currentUser = ref<any>(null);
 const jiraAuth = new SimpleJiraAuth();
 
@@ -79,18 +84,23 @@ function disconnect() {
     currentUser.value = null;
     searchResults.value = [];
     searchQuery.value = '';
+    searchError.value = '';
 }
 
 async function searchIssues() {
     if (!searchQuery.value.trim() || !gameStore.currentSession?.id) return;
     
     isLoading.value = true;
+    searchError.value = '';
+    searchResults.value = [];
+    
     try {
         const issues = await jiraAuth.searchIssues(gameStore.currentSession.id, searchQuery.value);
         searchResults.value = issues;
+        console.log('Search successful, found', issues.length, 'issues');
     } catch (error) {
         console.error('Search failed:', error);
-        // You might want to show a user-friendly error message here
+        searchError.value = error instanceof Error ? error.message : 'Search failed. Please try again.';
     } finally {
         isLoading.value = false;
     }
@@ -228,6 +238,21 @@ onMounted(() => {
 
 .search-btn:hover {
     background: linear-gradient(145deg, #2980b9, #21618c);
+}
+
+.search-error {
+    background: rgba(231, 76, 60, 0.2);
+    border: 1px solid #e74c3c;
+    border-radius: 4px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.search-error p {
+    margin: 0;
+    color: #e74c3c;
+    font-size: 0.9rem;
+    text-align: center;
 }
 
 .search-results {
