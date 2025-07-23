@@ -8,6 +8,7 @@ import {
   deleteRoom as deleteRoomUtil,
   clearAllSessionData,
 } from "@/utils/sessionStorage";
+import { getApiUrl, getWsUrl } from "@/config/api";
 
 export interface Player {
   id: string;
@@ -559,7 +560,7 @@ export const useGameStore = defineStore("game", () => {
 
     try {
       // First, join the session via the backend
-      const joinResponse = await fetch("http://localhost:8080/session/join", {
+      const joinResponse = await fetch(getApiUrl("/session/join"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -623,7 +624,7 @@ export const useGameStore = defineStore("game", () => {
 
     try {
       // Call the backend API to create session
-      const response = await fetch("http://localhost:8080/session", {
+      const response = await fetch(getApiUrl("/session"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -716,7 +717,7 @@ export const useGameStore = defineStore("game", () => {
     });
 
     try {
-      const response = await fetch("http://localhost:8080/session/import-jira", {
+      const response = await fetch(getApiUrl("/session/import-jira"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -781,7 +782,7 @@ export const useGameStore = defineStore("game", () => {
       wsConnection.value.close();
     }
 
-    const wsUrl = `ws://localhost:8080/ws?sessionId=${sessionId}`;
+    const wsUrl = getWsUrl(`/ws?sessionId=${sessionId}`);
     console.log("Connecting to WebSocket:", wsUrl);
     
     wsConnection.value = new WebSocket(wsUrl);

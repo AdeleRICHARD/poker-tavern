@@ -34,6 +34,10 @@ type Story struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	JiraKey     string `json:"jiraKey,omitempty"`
+	// JIRA-specific fields
+	Type        string `json:"type,omitempty"`
+	Status      string `json:"status,omitempty"`
+	Priority    string `json:"priority,omitempty"`
 }
 
 // ChatMessage represents a chat entry.
@@ -134,11 +138,174 @@ func min(a, b int) int {
 	return b
 }
 
+// extractTextFromADF recursively extracts formatted text from Atlassian Document Format (ADF)
+func extractTextFromADF(node map[string]interface{}) string {
+	var text strings.Builder
+	
+	// Get the node type
+	nodeType, hasType := node["type"]
+	typeStr := ""
+	if hasType {
+		typeStr, _ = nodeType.(string)
+	}
+	
+	// Handle different node types with formatting
+	switch typeStr {
+	case "heading":
+		// Extract heading level
+		level := 3 // default
+		if attrs, exists := node["attrs"]; exists {
+			if attrsMap, ok := attrs.(map[string]interface{}); ok {
+				if levelVal, exists := attrsMap["level"]; exists {
+					if levelInt, ok := levelVal.(float64); ok {
+						level = int(levelInt)
+					}
+				}
+			}
+		}
+		tag := fmt.Sprintf("h%d", level)
+		text.WriteString(fmt.Sprintf("<%s>", tag))
+		if content, exists := node["content"]; exists {
+			if contentArray, ok := content.([]interface{}); ok {
+				for _, child := range contentArray {
+					if childNode, ok := child.(map[string]interface{}); ok {
+						text.WriteString(extractTextFromADF(childNode))
+					}
+				}
+			}
+		}
+		text.WriteString(fmt.Sprintf("</%s>", tag))
+		return text.String()
+	
+	case "paragraph":
+		text.WriteString("<p>")
+		if content, exists := node["content"]; exists {
+			if contentArray, ok := content.([]interface{}); ok {
+				for _, child := range contentArray {
+					if childNode, ok := child.(map[string]interface{}); ok {
+						text.WriteString(extractTextFromADF(childNode))
+					}
+				}
+			}
+		}
+		text.WriteString("</p>")
+		return text.String()
+	
+	case "text":
+		// Handle text with potential marks (bold, italic, etc.)
+		textContent := ""
+		if textVal, exists := node["text"]; exists {
+			if str, ok := textVal.(string); ok {
+				textContent = str
+			}
+		}
+		
+		// Check for marks (bold, italic, etc.)
+		if marks, exists := node["marks"]; exists {
+			if marksArray, ok := marks.([]interface{}); ok {
+				for _, mark := range marksArray {
+					if markMap, ok := mark.(map[string]interface{}); ok {
+						if markType, exists := markMap["type"]; exists {
+							if markTypeStr, ok := markType.(string); ok {
+								switch markTypeStr {
+								case "strong":
+									textContent = "<strong>" + textContent + "</strong>"
+								case "em":
+									textContent = "<em>" + textContent + "</em>"
+								case "code":
+									textContent = "<code>" + textContent + "</code>"
+								case "link":
+									if attrs, exists := markMap["attrs"]; exists {
+										if attrsMap, ok := attrs.(map[string]interface{}); ok {
+											if href, exists := attrsMap["href"]; exists {
+												if hrefStr, ok := href.(string); ok {
+													textContent = fmt.Sprintf(`<a href="%s" target="_blank">%s</a>`, hrefStr, textContent)
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		text.WriteString(textContent)
+		return text.String()
+	
+	case "emoji":
+		// Handle emojis
+		if attrs, exists := node["attrs"]; exists {
+			if attrsMap, ok := attrs.(map[string]interface{}); ok {
+				if emojiText, exists := attrsMap["text"]; exists {
+					if emojiStr, ok := emojiText.(string); ok {
+						text.WriteString(emojiStr)
+					}
+				}
+			}
+		}
+		return text.String()
+	
+	case "hardBreak":
+		return "<br>"
+	
+	case "rule":
+		return "<hr>"
+	
+	case "panel":
+		// Handle Jira panels (info, warning, etc.)
+		panelType := "info"
+		if attrs, exists := node["attrs"]; exists {
+			if attrsMap, ok := attrs.(map[string]interface{}); ok {
+				if pType, exists := attrsMap["panelType"]; exists {
+					if pTypeStr, ok := pType.(string); ok {
+						panelType = pTypeStr
+					}
+				}
+			}
+		}
+		text.WriteString(fmt.Sprintf(`<div class="panel panel-%s">`, panelType))
+		if content, exists := node["content"]; exists {
+			if contentArray, ok := content.([]interface{}); ok {
+				for _, child := range contentArray {
+					if childNode, ok := child.(map[string]interface{}); ok {
+						text.WriteString(extractTextFromADF(childNode))
+					}
+				}
+			}
+		}
+		text.WriteString("</div>")
+		return text.String()
+	
+	default:
+		// For unknown types or nodes without type, process content recursively
+		if content, exists := node["content"]; exists {
+			if contentArray, ok := content.([]interface{}); ok {
+				for _, child := range contentArray {
+					if childNode, ok := child.(map[string]interface{}); ok {
+						text.WriteString(extractTextFromADF(childNode))
+					}
+				}
+			}
+		}
+	
+		// If it's a text node without type
+		if textContent, exists := node["text"]; exists {
+			if str, ok := textContent.(string); ok {
+				text.WriteString(str)
+			}
+		}
+	}
+	
+	return text.String()
+}
+
 func main() {
-	// Load environment variables from .env file
+	// Load environment variables from .env file (optional in production)
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatalf("Error loading .env file")
+		log.Printf("Warning: .env file not found, using environment variables: %v", err)
 	}
 
 	// Define endpoints.
@@ -160,7 +327,12 @@ func main() {
 	// Wrap DefaultServeMux with CORS middleware.
 	handler := corsMiddleware(http.DefaultServeMux)
 
-	addr := ":8080"
+	// Get port from environment variable (for cloud platforms like Render)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // Default for local development
+	}
+	addr := "0.0.0.0:" + port
 	log.Printf("Starting server on %s\n", addr)
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
@@ -291,6 +463,16 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(session)
 }
 
+// getBaseURL determines the base URL from the request
+func getBaseURL(r *http.Request) string {
+	// Use the Host header to determine the base URL
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return fmt.Sprintf("%s://%s", scheme, r.Host)
+}
+
 // jiraAuthUrlHandler returns the OAuth URL for JIRA authentication (used by popup flow)
 func jiraAuthUrlHandler(w http.ResponseWriter, r *http.Request) {
 	// Expect a session ID as a query parameter
@@ -300,15 +482,22 @@ func jiraAuthUrlHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get base URL from request
+	baseURL := getBaseURL(r)
+
 	// OAuth 2.0 configuration - get from environment variables
 	clientID := os.Getenv("JIRA_CLIENT_ID")
 	clientSecret := os.Getenv("JIRA_CLIENT_SECRET")
-	demoMode := os.Getenv("DEMO_MODE") == "true"
+	demoMode := os.Getenv("DEMO_MODE")
+	if demoMode == "" {
+		demoMode = "true" // Default to demo mode for easy testing
+	}
+	demoMode = demoMode == "true"
 	
 	// Check if demo mode is enabled
 	if demoMode {
 		// Return demo OAuth URL for testing popup flow
-		demoURL := fmt.Sprintf("http://localhost:8080/demo/oauth?sessionId=%s", sessionID)
+		demoURL := fmt.Sprintf("%s/demo/oauth?sessionId=%s", baseURL, sessionID)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"authUrl": demoURL,
@@ -327,7 +516,7 @@ func jiraAuthUrlHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	redirectURI := "http://localhost:8080/auth/jira/callback"
+	redirectURI := fmt.Sprintf("%s/auth/jira/callback", baseURL)
 	scopes := "offline_access read:jira-work read:jira-user read:account read:me read:issue:jira read:project:jira"
 
 	// Generate state parameter for security (store sessionID in state)
@@ -393,12 +582,19 @@ func jiraCallbackHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    data := url.Values{}
-    data.Set("grant_type", "authorization_code")
-    data.Set("client_id", clientID)
-    data.Set("client_secret", clientSecret)
-    data.Set("code", code)
-    data.Set("redirect_uri", "http://localhost:8080/auth/jira/callback")
+	// Get base URL from request to use correct host
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	baseURL := fmt.Sprintf("%s://%s", scheme, r.Host)
+	
+	data := url.Values{}
+	data.Set("grant_type", "authorization_code")
+	data.Set("client_id", clientID)
+	data.Set("client_secret", clientSecret)
+	data.Set("code", code)
+	data.Set("redirect_uri", fmt.Sprintf("%s/auth/jira/callback", baseURL))
 
     tokenResp, err := http.Post(
         "https://auth.atlassian.com/oauth/token",
@@ -462,25 +658,34 @@ func jiraCallbackHandler(w http.ResponseWriter, r *http.Request) {
     }
     jiraConnectionsMutex.Unlock()
 
-    // Create user data for postMessage
-    userDataJSON, _ := json.Marshal(userData)
+	// Create user data for postMessage
+	userDataJSON, _ := json.Marshal(userData)
 
-    // Send success message to parent window and close popup
-    w.Header().Set("Content-Type", "text/html")
-    w.Write([]byte(fmt.Sprintf(`
-        <html>
-        <body>
-        <script>
-            window.opener.postMessage({
-                type: 'JIRA_AUTH_SUCCESS',
-                user: %s
-            }, 'http://localhost:5173');
-            window.close();
-        </script>
-        <p>JIRA connection successful! You can close this window.</p>
-        </body>
-        </html>
-    `, userDataJSON)))
+	// Determine the frontend origin based on the request
+	referer := r.Header.Get("Referer")
+	frontendOrigin := "http://localhost:5173" // fallback
+	if referer != "" {
+		if refererURL, err := url.Parse(referer); err == nil {
+			frontendOrigin = fmt.Sprintf("%s://%s", refererURL.Scheme, refererURL.Host)
+		}
+	}
+
+	// Send success message to parent window and close popup
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(fmt.Sprintf(`
+		<html>
+		<body>
+		<script>
+			window.opener.postMessage({
+				type: 'JIRA_AUTH_SUCCESS',
+				user: %s
+			}, '%s');
+			window.close();
+		</script>
+		<p>JIRA connection successful! You can close this window.</p>
+		</body>
+		</html>
+	`, userDataJSON, frontendOrigin)))
 }
 
 // jiraStatusHandler checks if a session is connected to JIRA
@@ -531,9 +736,9 @@ func jiraSearchHandler(w http.ResponseWriter, r *http.Request) {
 	if demoMode {
 		// Return demo search results
 		mockedIssues := []Story{
-			{ID: "DEMO-1", Title: "[DEMO] Fix login issue", Description: "Users cannot log in to the application", JiraKey: "DEMO-1"},
-			{ID: "DEMO-2", Title: "[DEMO] Add user profile page", Description: "Create a user profile page with basic info", JiraKey: "DEMO-2"},
-			{ID: "DEMO-3", Title: "[DEMO] Performance optimization", Description: "Improve application loading time", JiraKey: "DEMO-3"},
+			{ID: "DEMO-1", Title: "[DEMO] Fix login issue", Description: "Users cannot log in to the application", JiraKey: "DEMO-1", Type: "Bug", Status: "To Do", Priority: "High"},
+			{ID: "DEMO-2", Title: "[DEMO] Add user profile page", Description: "Create a user profile page with basic info", JiraKey: "DEMO-2", Type: "Story", Status: "In Progress", Priority: "Medium"},
+			{ID: "DEMO-3", Title: "[DEMO] Performance optimization", Description: "Improve application loading time", JiraKey: "DEMO-3", Type: "Task", Status: "Done", Priority: "Low"},
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -742,22 +947,24 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 			case string:
 				description = desc
 			case map[string]interface{}:
-				// Jira rich text format - try to extract plain text
-				if descBytes, err := json.Marshal(desc); err == nil {
-					description = "Rich text: " + string(descBytes)[:min(200, len(descBytes))] + "..."
-				} else {
-					description = "[Rich text content]"
-				}
+				// Jira rich text format - extract plain text from ADF
+				description = extractTextFromADF(desc)
+				log.Printf("Final extracted description: %s", description[:min(300, len(description))])
 			default:
 				description = "[Complex content]"
 			}
+		} else {
+			log.Printf("Description field is nil for issue: %s", issue.Key)
 		}
 		
-		story := Story{
+story := Story{
 			ID:          uuid.New().String(),
 			Title:       issue.Key + ": " + issue.Fields.Summary,
 			Description: description,
 			JiraKey:     issue.Key,
+			Type:        issue.Fields.IssueType.Name,
+			Status:      issue.Fields.Status.Name,
+			Priority:    issue.Fields.Priority.Name,
 		}
 		stories = append(stories, story)
 	}
@@ -958,6 +1165,15 @@ func demoOAuthHandler(w http.ResponseWriter, r *http.Request) {
 		"picture":    "https://avatar.atlassian.com/demo.png",
 	}
 
+	// Determine the frontend origin based on the request
+	referer := r.Header.Get("Referer")
+	frontendOrigin := "http://localhost:5173" // fallback
+	if referer != "" {
+		if refererURL, err := url.Parse(referer); err == nil {
+			frontendOrigin = fmt.Sprintf("%s://%s", refererURL.Scheme, refererURL.Host)
+		}
+	}
+
 	// Save mock connection
 	jiraConnectionsMutex.Lock()
 	jiraConnections[sessionID] = &JiraConnection{
@@ -1055,7 +1271,7 @@ func demoOAuthHandler(w http.ResponseWriter, r *http.Request) {
 						window.opener.postMessage({
 							type: 'JIRA_AUTH_SUCCESS',
 							user: %s
-						}, 'http://localhost:5173');
+						}, '%s');
 						window.close();
 					} catch (error) {
 						console.error('Error sending message:', error);
@@ -1068,19 +1284,36 @@ func demoOAuthHandler(w http.ResponseWriter, r *http.Request) {
 			</script>
 		</body>
 		</html>
-	`, userDataJSON)))
+	`, userDataJSON, frontendOrigin)))
 }
 
 // corsMiddleware adds CORS headers to every response.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow access from the frontend (both common ports).
+		// Allow access from the frontend (both localhost and network).
 		origin := r.Header.Get("Origin")
-		if origin == "http://localhost:5173" || origin == "http://localhost:5174" {
+		allowedOrigins := []string{
+			"http://localhost:5173",
+			"http://localhost:5174",
+			"http://192.168.35.176:5173",
+			"http://192.168.35.176:5174",
+		}
+		
+		originAllowed := false
+		for _, allowedOrigin := range allowedOrigins {
+			if origin == allowedOrigin {
+				originAllowed = true
+				break
+			}
+		}
+		
+		if originAllowed {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 		} else {
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5174")
+			// Fallback to localhost for development
+			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
 		}
+		
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 

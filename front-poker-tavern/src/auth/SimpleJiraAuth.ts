@@ -1,8 +1,10 @@
+import { API_CONFIG } from '@/config/api';
+
 class SimpleJiraAuth {
   private baseUrl: string;
 
-  constructor(baseUrl: string = 'http://localhost:8080') {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    this.baseUrl = baseUrl || API_CONFIG.BASE_URL;
   }
 
   /**
@@ -36,7 +38,7 @@ class SimpleJiraAuth {
       return new Promise((resolve, reject) => {
         const messageHandler = (event: MessageEvent) => {
           // Verify origin for security
-          if (event.origin !== 'http://localhost:8080') {
+          if (event.origin !== this.baseUrl) {
             return;
           }
           
