@@ -305,7 +305,13 @@ func main() {
 	// Load environment variables from .env file (optional in production)
 	err := godotenv.Load()
 	if err != nil {
-		log.Printf("Warning: .env file not found, using environment variables: %v", err)
+		// Only log if it's an actual error, not just a missing file
+		if !strings.Contains(err.Error(), "no such file or directory") && !strings.Contains(err.Error(), "cannot find the file") {
+			log.Printf("Warning: Error loading .env file: %v", err)
+		}
+		// In development, you might want to know the .env is missing
+		// Uncomment the line below if needed:
+		// log.Printf("Info: .env file not found, using environment variables")
 	}
 
 	// Define endpoints.
@@ -492,10 +498,10 @@ func jiraAuthUrlHandler(w http.ResponseWriter, r *http.Request) {
 	if demoMode == "" {
 		demoMode = "true" // Default to demo mode for easy testing
 	}
-	demoMode = demoMode == "true"
+	demoModeEnabled := demoMode == "true"
 	
 	// Check if demo mode is enabled
-	if demoMode {
+	if demoModeEnabled {
 		// Return demo OAuth URL for testing popup flow
 		demoURL := fmt.Sprintf("%s/demo/oauth?sessionId=%s", baseURL, sessionID)
 		w.Header().Set("Content-Type", "application/json")
