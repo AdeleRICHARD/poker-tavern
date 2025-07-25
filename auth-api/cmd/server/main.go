@@ -673,14 +673,9 @@ func jiraCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	// Create user data for postMessage
 	userDataJSON, _ := json.Marshal(userData)
 
-	// Determine the frontend origin based on the request
-	referer := r.Header.Get("Referer")
-	frontendOrigin := "http://localhost:5173" // fallback
-	if referer != "" {
-		if refererURL, err := url.Parse(referer); err == nil {
-			frontendOrigin = fmt.Sprintf("%s://%s", refererURL.Scheme, refererURL.Host)
-		}
-	}
+	// Determine the frontend origin - since this is OAuth callback, we need to use the backend origin
+	// The frontend will be expecting messages from the backend origin
+	frontendOrigin := getBaseURL(r) // Use backend URL as the message origin
 
 	// Send success message to parent window and close popup
 	w.Header().Set("Content-Type", "text/html")

@@ -37,8 +37,9 @@ class SimpleJiraAuth {
       // Step 3: Listen for authentication success
       return new Promise((resolve, reject) => {
         const messageHandler = (event: MessageEvent) => {
-          // Verify origin for security
+          // Verify origin for security - accept messages from backend
           if (event.origin !== this.baseUrl) {
+            console.log('Ignoring message from origin:', event.origin, 'Expected:', this.baseUrl);
             return;
           }
           
