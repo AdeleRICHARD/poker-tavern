@@ -473,9 +473,19 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 func getBaseURL(r *http.Request) string {
 	// Use the Host header to determine the base URL
 	scheme := "http"
+	
+	// Check for HTTPS in multiple ways (for reverse proxies like Render)
 	if r.TLS != nil {
 		scheme = "https"
+	} else if r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	} else if r.Header.Get("X-Forwarded-Ssl") == "on" {
+		scheme = "https"
+	} else if strings.Contains(r.Host, "render.com") || strings.Contains(r.Host, "onrender.com") {
+		// Render always uses HTTPS for *.onrender.com domains
+		scheme = "https"
 	}
+	
 	return fmt.Sprintf("%s://%s", scheme, r.Host)
 }
 
@@ -589,11 +599,7 @@ func jiraCallbackHandler(w http.ResponseWriter, r *http.Request) {
     }
     
 	// Get base URL from request to use correct host
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	baseURL := fmt.Sprintf("%s://%s", scheme, r.Host)
+	baseURL := getBaseURL(r)
 	
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
