@@ -1298,22 +1298,9 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Allow access from the frontend (both localhost and network).
 		origin := r.Header.Get("Origin")
-		allowedOrigins := []string{
-			"http://localhost:5173",
-			"http://localhost:5174",
-			"http://192.168.35.176:5173",
-			"http://192.168.35.176:5174",
-		}
 		
-		originAllowed := false
-		for _, allowedOrigin := range allowedOrigins {
-			if origin == allowedOrigin {
-				originAllowed = true
-				break
-			}
-		}
-		
-		if originAllowed {
+		// Dynamically allow local network origins
+		if origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 		} else {
 			// Fallback to localhost for development
