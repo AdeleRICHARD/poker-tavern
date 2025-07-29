@@ -37,11 +37,18 @@ class SimpleJiraAuth {
       // Step 3: Listen for authentication success
       return new Promise((resolve, reject) => {
         const messageHandler = (event: MessageEvent) => {
-          // Verify origin for security - accept messages from backend
-          if (event.origin !== this.baseUrl) {
+          // For development, be more flexible with origin validation
+          // Accept messages from the backend or if using wildcard
+          const isValidOrigin = event.origin === this.baseUrl || 
+                               event.origin.includes('onrender.com') ||
+                               this.baseUrl.includes('localhost');
+          
+          if (!isValidOrigin) {
             console.log('Ignoring message from origin:', event.origin, 'Expected:', this.baseUrl);
             return;
           }
+          
+          console.log('Received valid postMessage from:', event.origin, 'Data:', event.data);
           
           if (event.data.type === 'JIRA_AUTH_SUCCESS') {
             // Clean up

@@ -144,7 +144,19 @@
                     </div>
                 </div>
 
-                <JiraImport />
+                <JiraImport @issue-selected="onIssueSelected" />
+                
+                <!-- Current Issue for Voting -->
+                <div v-if="selectedIssueForVoting" class="current-issue-display">
+                    <h3>🎯 Current Issue</h3>
+                    <div class="issue-info">
+                        <h4>{{ selectedIssueForVoting.title }}</h4>
+                        <p v-if="selectedIssueForVoting.description">{{ selectedIssueForVoting.description }}</p>
+                        <div class="issue-meta">
+                            <span v-if="selectedIssueForVoting.jiraKey" class="jira-key">{{ selectedIssueForVoting.jiraKey }}</span>
+                        </div>
+                    </div>
+                </div>
                 
                 <div v-if="!gameStore.currentSession" class="no-session-notice">
                     <h3>🏠 No Session</h3>
@@ -155,119 +167,7 @@
                     <p>Please log in or create a session first.</p>
                 </div>
 
-                <div class="current-vote" v-if="gameStore.currentStory">
-                    <div class="story-header">
-                        <h3>🎯 Story to estimate</h3>
-                        <span class="story-counter">
-                            {{ gameStore.currentStoryProgress.current }} /
-                            {{ gameStore.currentStoryProgress.total }}
-                        </span>
-                    </div>
 
-                    <div class="story-card">
-                        <div class="story-status">
-                            <span
-                                v-if="gameStore.isCurrentStoryRevealed"
-                                class="status-badge revealed"
-                            >
-                                ✅ Revealed
-                            </span>
-                            <span
-                                v-else-if="
-                                    gameStore.allPlayersVotedCurrentStory
-                                "
-                                class="status-badge ready"
-                            >
-                                🎭 Ready to reveal
-                            </span>
-                            <span
-                                v-else-if="hasCurrentPlayerVoted()"
-                                class="status-badge voted"
-                            >
-                                🗳️ You voted
-                            </span>
-                            <span v-else class="status-badge pending">
-                                ⏳ Not voted
-                            </span>
-                        </div>
-
-                        <h4>{{ gameStore.currentStory.title }}</h4>
-                        <p>{{ gameStore.currentStory.description }}</p>
-                        <small v-if="gameStore.currentStory.jiraKey">{{
-                            gameStore.currentStory.jiraKey
-                        }}</small>
-                    </div>
-                </div>
-
-                <!-- session ticket to do to make in a component -->
-                <div
-                    class="stories-overview"
-                    v-if="
-                        gameStore.currentSession &&
-                        gameStore.currentSession.stories.length > 0
-                    "
-                >
-                    <h3>📋 Stories Overview</h3>
-                    <div class="stories-list">
-                        <div
-                            v-for="(story, index) in gameStore.currentSession
-                                .stories"
-                            :key="story.id"
-                            :class="[
-                                'story-item',
-                                { active: index === gameStore.localStoryIndex },
-                            ]"
-                            @click="gameStore.navigateToStory(index)"
-                        >
-                            <div class="story-item-header">
-                                <span class="story-number">{{
-                                    index + 1
-                                }}</span>
-                                <div class="story-item-status">
-                                    <span
-                                        v-if="isStoryRevealed(story.id)"
-                                        class="mini-badge revealed"
-                                        title="All voted, revealed"
-                                    >
-                                        ✅
-                                    </span>
-                                    <span
-                                        v-else-if="isStoryReady(story.id)"
-                                        class="mini-badge ready"
-                                        title="All voted, ready to reveal"
-                                    >
-                                        🎭
-                                    </span>
-                                    <span
-                                        v-else-if="hasVotedOnStory(story.id)"
-                                        class="mini-badge voted"
-                                        title="You voted"
-                                    >
-                                        🗳️
-                                    </span>
-                                    <span
-                                        v-else
-                                        class="mini-badge pending"
-                                        title="Not voted"
-                                    >
-                                        ⏳
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="story-item-title">
-                                {{ story.title }}
-                            </div>
-                            <div class="story-votes-count">
-                                {{ getStoryVotesCount(story.id) }} /
-                                {{
-                                    gameStore.currentSession.requiredPlayers
-                                        .length
-                                }}
-                                votes
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- poker cards to make in a component -->
                 <div class="poker-cards">
@@ -519,6 +419,7 @@ const gameManager = new GameManager();
 const newMessage = ref("");
 const showSummaryModal = ref(false);
 const showCopied = ref(false);
+const selectedIssueForVoting = ref<any>(null);
 
 // Lifecycle
 onMounted(() => {
@@ -870,6 +771,19 @@ function getPhaseText(phase: string): string {
     };
     return phases[phase as keyof typeof phases] || phase;
 }
+
+// Issue selection handler
+function onIssueSelected(issue: any) {
+    selectedIssueForVoting.value = issue;
+    console.log('Issue selected for voting:', issue.title);
+    
+    // Add a chat message about the selection
+    gameStore.addChatMessage({
+        author: "System",
+        text: `Issue selected for voting: ${issue.title}`,
+        type: "system",
+    });
+}
 </script>
 
 <style scoped>
@@ -1190,7 +1104,7 @@ function getPhaseText(phase: string): string {
     border: 1px solid #95a5a6;
 }
 
-.story-card {
+.current-story-display {
     background: rgba(52, 73, 94, 0.8);
     border: 2px solid #7f8c8d;
     border-radius: 8px;
@@ -1198,21 +1112,67 @@ function getPhaseText(phase: string): string {
     margin-top: 0.5rem;
 }
 
-.story-card h4 {
+.current-story-display h4 {
     color: #3498db;
     margin: 0 0 0.5rem 0;
     font-size: 1rem;
 }
 
-.story-card p {
+.current-story-display p {
     margin: 0 0 0.5rem 0;
     line-height: 1.4;
     font-size: 0.9rem;
 }
 
-.story-card small {
+.current-story-display small {
     color: #95a5a6;
     font-style: italic;
+}
+
+/* Current Issue Display */
+.current-issue-display {
+    background: rgba(52, 73, 94, 0.8);
+    border: 2px solid #f39c12;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.current-issue-display h3 {
+    color: #f39c12;
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    text-align: center;
+}
+
+.issue-info h4 {
+    color: #ecf0f1;
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    line-height: 1.3;
+}
+
+.issue-info p {
+    color: #bdc3c7;
+    margin: 0 0 0.75rem 0;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.issue-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.jira-key {
+    background: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    border: 1px solid #3498db;
 }
 
 .poker-cards {

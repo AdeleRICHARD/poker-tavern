@@ -789,12 +789,11 @@ func jiraSearchHandler(w http.ResponseWriter, r *http.Request) {
 
 // searchJiraIssues searches for JIRA issues using the Atlassian API with OAuth token
 func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
-	// Get accessible resources (sites) for the user
 	// Log the token being used for debugging
-	log.Printf("Using access token for API call: %s", conn.APIToken[:20]+"...")
+	log.Printf("Using access token for API call: %s", conn.APIToken[:min(20, len(conn.APIToken))]+"...")
 
-	// Log the request details
-	log.Printf("Making request to accessible-resources endpoint with Authorization header")
+	// Step 1: Get accessible resources (sites) for the user
+	log.Printf("Getting accessible resources for user")
 
 	req, err := http.NewRequest("GET", "https://api.atlassian.com/oauth/token/accessible-resources", nil)
 	if err != nil {
@@ -803,15 +802,24 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 	req.Header.Set("Authorization", "Bearer "+conn.APIToken)
 	req.Header.Set("Accept", "application/json")
 	
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get accessible resources: %v", err)
 	}
 	defer resp.Body.Close()
 	
+	// Read response body for debugging
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	log.Printf("Resources API response status: %d", resp.StatusCode)
+	log.Printf("Resources API response body: %s", string(respBody))
+	
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Failed to get accessible resources: %d %s", resp.StatusCode, resp.Status)
-		return nil, fmt.Errorf("failed to get accessible resources: %s", resp.Status)
+		return nil, fmt.Errorf("failed to get accessible resources: %s - %s", resp.Status, string(respBody))
 	}
 	
 	var resources []struct {
@@ -820,7 +828,7 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 		URL  string `json:"url"`
 	}
 	
-	if err := json.NewDecoder(resp.Body).Decode(&resources); err != nil {
+	if err := json.Unmarshal(respBody, &resources); err != nil {
 		return nil, fmt.Errorf("failed to decode resources: %v", err)
 	}
 	
@@ -831,7 +839,7 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 	}
 	
 	if len(resources) == 0 {
-		return nil, fmt.Errorf("no accessible JIRA resources found")
+		return nil, fmt.Errorf("no accessible JIRA resources found - user may not have access to any JIRA sites")
 	}
 	
 	// Use the first resource (most common case)
@@ -913,7 +921,7 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 	for name, values := range searchReq.Header {
 		for _, value := range values {
 			if name == "Authorization" {
-				log.Printf("  %s: Bearer %s...", name, value[7:27]) // Show first 20 chars of token
+				log.Printf("  %s: Bearer %s...", name, value[7:min(27, len(value))]) // Show first 20 chars of token
 			} else {
 				log.Printf("  %s: %s", name, value)
 			}
@@ -922,7 +930,9 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 	log.Printf("Request Body: %s", string(searchJSON))
 	log.Printf("=================================")
 	
-	searchResp, err := http.DefaultClient.Do(searchReq)
+	// Use client with timeout for search request
+	searchClient := &http.Client{Timeout: 30 * time.Second}
+	searchResp, err := searchClient.Do(searchReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search issues: %v", err)
 	}

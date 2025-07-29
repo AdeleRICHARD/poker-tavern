@@ -203,6 +203,9 @@ export const useGameStore = defineStore("game", () => {
 
     // Load any persisted local state
     loadPersistedState();
+    
+    // Set appropriate game phase after loading
+    updateGamePhase();
   }
 
   function selectCharacter(characterId: string) {
@@ -482,6 +485,29 @@ export const useGameStore = defineStore("game", () => {
       player.hasVoted = !!currentStoryVotes[player.id];
       player.vote = currentStoryVotes[player.id];
     });
+  }
+
+  function updateGamePhase() {
+    // Set appropriate game phase based on current state
+    if (!currentSession.value || !currentSession.value.stories.length) {
+      gamePhase.value = GamePhase.WAITING;
+      return;
+    }
+
+    // If all stories are voted by everyone and reveals are enabled, show as revealed
+    if (allStoriesVotedByEveryone.value && currentSession.value.revealVotes) {
+      gamePhase.value = GamePhase.REVEALED;
+      return;
+    }
+
+    // If we have stories and a session, we should be in voting phase
+    if (currentSession.value.stories.length > 0) {
+      gamePhase.value = GamePhase.VOTING;
+      return;
+    }
+
+    // Default to waiting
+    gamePhase.value = GamePhase.WAITING;
   }
 
   // Connect to session - now properly integrated with backend
@@ -1128,6 +1154,7 @@ export const useGameStore = defineStore("game", () => {
     loadPersistedState,
     hasCurrentPlayerVoted,
     updatePlayerVotedStatus,
+    updateGamePhase,
     getAvailableRoomsUtil,
     deleteRoomUtil,
     connectWebSocket,
