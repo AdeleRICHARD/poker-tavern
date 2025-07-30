@@ -21,11 +21,12 @@ import (
 
 // Session represents a Planning Poker session.
 type Session struct {
-	SessionID    string        `json:"sessionId"`
-	Name         string        `json:"name"`
-	Players      []string      `json:"players"`
-	Stories      []Story       `json:"stories"`
-	ChatMessages []ChatMessage `json:"chatMessages"`
+	SessionID       string                            `json:"sessionId"`
+	Name            string                            `json:"name"`
+	Players         []string                          `json:"players"`
+	Stories         []Story                           `json:"stories"`
+	ChatMessages    []ChatMessage                     `json:"chatMessages"`
+	PersistentVotes map[string]map[string]string      `json:"persistentVotes,omitempty"`
 }
 
 // Story represents an imported story (e.g., from Jira).
@@ -1220,7 +1221,43 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				}
 				broadcastBytes, _ := json.Marshal(broadcastMsg)
 				hub.broadcast <- broadcastBytes
-			// TODO: Add other types if needed later (e.g., "vote").
+			case "vote_cast":
+				log.Printf("🗳️ Received vote_cast message: %+v", incoming)
+				storyID, storyOK := incoming["storyId"].(string)
+				playerID, playerOK := incoming["playerId"].(string)
+				vote, voteOK := incoming["vote"].(string)
+				playerName, playerNameOK := incoming["playerName"].(string)
+				log.Printf("🔍 Vote data extracted - storyID:%s(%v), playerID:%s(%v), vote:%s(%v), playerName:%s(%v)", 
+					storyID, storyOK, playerID, playerOK, vote, voteOK, playerName, playerNameOK)
+
+				if !storyOK || !playerOK || !voteOK || !playerNameOK {
+					log.Printf("❌ Invalid vote_cast message: one or more fields are missing or have the wrong type")
+					continue
+				}
+
+				// Store the vote in the session
+				sessionsMutex.Lock()
+				if session.PersistentVotes == nil {
+					session.PersistentVotes = make(map[string]map[string]string)
+				}
+				if _, ok := session.PersistentVotes[storyID]; !ok {
+					session.PersistentVotes[storyID] = make(map[string]string)
+				}
+				session.PersistentVotes[storyID][playerID] = vote
+				sessionsMutex.Unlock()
+
+				// Broadcast the vote to all clients
+				broadcastMsg := map[string]interface{}{
+					"type":       "vote_cast",
+					"storyId":    storyID,
+					"playerId":   playerID,
+					"vote":       vote,
+					"playerName": playerName,
+				}
+				broadcastBytes, _ := json.Marshal(broadcastMsg)
+				log.Printf("🗚️ Broadcasting vote_cast message: %s", string(broadcastBytes))
+				hub.broadcast <- broadcastBytes
+				log.Printf("🗳️ Broadcasted vote_cast for player %s on story %s to %d clients", playerName, storyID, len(hub.clients))
 			default:
 				log.Printf("Unknown message type: %v", incoming["type"])
 			}

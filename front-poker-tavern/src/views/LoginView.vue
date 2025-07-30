@@ -144,15 +144,13 @@ async function handleLogin() {
                 sessionId.value.trim(),
                 playerName.value.trim(),
             );
-            await gameStore.connectToSession(sessionId.value.trim());
         } else {
             // Create default session
-            const newSessionId = await gameStore.createSession(
+            await gameStore.createSession(
                 `${playerName.value}'s Session`,
                 [],
                 playerName.value.trim()
             );
-            await gameStore.connectToSession(newSessionId);
         }
 
         emit("loginSuccess");
@@ -182,14 +180,11 @@ async function handleCreateSession() {
 
     try {
         // Create new session
-        const newSessionId = await gameStore.createSession(
+        await gameStore.createSession(
             newSessionName.value.trim(),
             [],
             playerName.value.trim()
         );
-
-        // Connect to the new session
-        await gameStore.connectToSession(newSessionId);
 
         emit("loginSuccess");
     } catch (error) {

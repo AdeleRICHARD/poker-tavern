@@ -91,6 +91,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useGameStore } from '@/stores/gameStore';
 import SimpleJiraAuth from '@/auth/SimpleJiraAuth';
 import JiraIssueModal from './JiraIssueModal.vue';
+import { getApiUrl } from '@/config/api';
 
 const gameStore = useGameStore();
 const isConnected = ref(false);
@@ -186,6 +187,11 @@ async function checkConnectionStatus() {
 }
 
 async function importIssue(issue: any) {
+    if (!gameStore.currentSession?.id) {
+        console.error('No session ID available');
+        return;
+    }
+    
     try {
         const story = {
             id: issue.id,
@@ -194,12 +200,40 @@ async function importIssue(issue: any) {
             jiraKey: issue.jiraKey
         };
         
-        gameStore.addStoriesToSession([story]);
+        // Call backend API to import and broadcast to all users
+        const response = await fetch(getApiUrl('/jira/import-issues'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                sessionId: gameStore.currentSession.id,
+                stories: [story]
+            }),
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to import issue: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('Issue imported successfully:', result);
+        
+        // The story will be added to the session via WebSocket broadcast
+        // so we don't need to call addStoriesToSession here
         
         // Remove from search results
         searchResults.value = searchResults.value.filter(i => i.jiraKey !== issue.jiraKey);
     } catch (error) {
         console.error('Import failed:', error);
+        // Fallback to local addition if API call fails
+        const story = {
+            id: issue.id,
+            title: issue.title,
+            description: issue.description || '',
+            jiraKey: issue.jiraKey
+        };
+        gameStore.addStoriesToSession([story]);
     }
 }
 

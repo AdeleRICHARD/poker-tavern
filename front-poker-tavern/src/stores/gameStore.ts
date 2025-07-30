@@ -257,45 +257,47 @@ export const useGameStore = defineStore("game", () => {
   }
 
   function submitVote() {
+    console.log("🔍 Debug submitVote() called with:", {
+      selectedCard: selectedCard.value,
+      currentPlayer: currentPlayer.value,
+      currentStory: currentStory.value,
+      currentSession: !!currentSession.value,
+      sessionId: currentSession.value?.id,
+    });
+    
     if (
       !selectedCard.value ||
       !currentPlayer.value ||
       !currentStory.value ||
       !currentSession.value
-    )
+    ) {
+      console.log("❌ submitVote() early return due to missing data:", {
+        selectedCard: !!selectedCard.value,
+        currentPlayer: !!currentPlayer.value,
+        currentStory: !!currentStory.value,
+        currentSession: !!currentSession.value,
+      });
       return;
-
-    // Store vote persistently
-    if (!currentSession.value.persistentVotes[currentStory.value.id]) {
-      currentSession.value.persistentVotes[currentStory.value.id] = {};
     }
 
-    currentSession.value.persistentVotes[currentStory.value.id][
-      currentPlayer.value.id
-    ] = selectedCard.value;
+    const voteMessage = {
+      type: "vote_cast",
+      sessionId: currentSession.value.id,
+      storyId: currentStory.value.id,
+      playerId: currentPlayer.value.id,
+      vote: selectedCard.value,
+      playerName: currentPlayer.value.name,
+    };
+    
+    console.log("🗳️ Submitting vote:", voteMessage);
+    console.log("WebSocket ready state:", wsConnection.value?.readyState);
+    
+    // Send vote to backend via WebSocket
+    sendWebSocketMessage(voteMessage);
 
-    // Update local state
-    currentPlayer.value.vote = selectedCard.value;
-    currentPlayer.value.hasVoted = true;
-
-    // Add/update player in the list
-    const existingPlayerIndex = players.value.findIndex(
-      (p) => p.id === currentPlayer.value!.id,
-    );
-    if (existingPlayerIndex >= 0) {
-      players.value[existingPlayerIndex] = { ...currentPlayer.value };
-    } else {
-      players.value.push({ ...currentPlayer.value });
-    }
-
-    // Persist to localStorage
-    savePersistedState();
-
-    addChatMessage({
-      author: "System",
-      text: `${currentPlayer.value.name} voted`,
-      type: "system",
-    });
+    // The backend will broadcast the vote, and the local state will be updated 
+    // by the handleVoteCast message handler. We can remove the local state 
+    // update from here to avoid redundant updates.
   }
 
   function revealVotes() {
@@ -638,6 +640,20 @@ export const useGameStore = defineStore("game", () => {
         }
       }
 
+      // Set connected state
+      isConnected.value = true;
+      
+      // Update game phase based on available stories
+      updateGamePhase();
+      
+      // Save the state to be able to restore it later
+      savePersistedState();
+
+      // Establish WebSocket connection after a small delay to avoid race conditions
+      setTimeout(() => {
+        connectWebSocket(sessionId);
+      }, 100);
+      
       return Promise.resolve();
     } catch (error) {
       console.error("Error joining session:", error);
@@ -692,6 +708,9 @@ export const useGameStore = defineStore("game", () => {
       // Save session state
       savePersistedState();
 
+      // Establish WebSocket connection
+      connectWebSocket(sessionData.sessionId);
+
       return sessionData.sessionId;
     } catch (error) {
       console.error("Error creating session:", error);
@@ -712,6 +731,9 @@ export const useGameStore = defineStore("game", () => {
 
     // Add stories to current session
     currentSession.value.stories = [...currentSession.value.stories, ...stories];
+    
+    // Update game phase after adding stories
+    updateGamePhase();
     
     // Save updated state
     savePersistedState();
@@ -767,6 +789,10 @@ export const useGameStore = defineStore("game", () => {
       // Update current session with imported stories
       if (result.stories && currentSession.value) {
         currentSession.value.stories = [...currentSession.value.stories, ...result.stories];
+        
+        // Update game phase after importing stories
+        updateGamePhase();
+        
         savePersistedState();
       }
 
@@ -858,7 +884,9 @@ export const useGameStore = defineStore("game", () => {
   }
 
   function handleWebSocketMessage(message: Record<string, unknown>) {
-    console.log("Received WebSocket message:", message);
+    console.log("📨 Received WebSocket message:", message);
+    console.log("📨 Message type:", message.type);
+    console.log("📨 Full message details:", JSON.stringify(message, null, 2));
     
     switch (message.type) {
       case "player_joined":
@@ -917,9 +945,20 @@ export const useGameStore = defineStore("game", () => {
         }
       }
       
-      // Update required players
+      // Update session data including stories if available
       if (currentSession.value) {
         currentSession.value.requiredPlayers = sessionPlayers;
+        
+        // Sync stories from the session if available, but only if we don't have stories locally
+        // This prevents overwriting local stories that might not be synced to backend yet
+        const sessionStories = session.stories as Story[];
+        if (sessionStories && Array.isArray(sessionStories)) {
+          // Only sync if we have fewer stories locally or if local stories are empty
+          if (currentSession.value.stories.length === 0 || sessionStories.length > currentSession.value.stories.length) {
+            currentSession.value.stories = sessionStories;
+            console.log('Synced stories from WebSocket session:', sessionStories);
+          }
+        }
       }
       
       // Add system message
@@ -1022,17 +1061,36 @@ export const useGameStore = defineStore("game", () => {
 
   function handleVoteCast(message: Record<string, unknown>) {
     const playerName = message.playerName as string;
+    const playerId = message.playerId as string;
     const vote = message.vote as string;
+    const storyId = message.storyId as string;
     
-    if (playerName && vote) {
-      console.log(`Player ${playerName} cast vote: ${vote}`);
+    if (playerName && playerId && vote && storyId && currentSession.value) {
+      console.log(`Player ${playerName} cast vote: ${vote} for story ${storyId}`);
       
-      // Update player's vote status
-      const player = players.value.find(p => p.name === playerName);
+      // Update persistent votes in the session
+      if (!currentSession.value.persistentVotes[storyId]) {
+        currentSession.value.persistentVotes[storyId] = {};
+      }
+      currentSession.value.persistentVotes[storyId][playerId] = vote;
+      
+      // Update player's vote status in the players list
+      const player = players.value.find(p => p.id === playerId);
       if (player) {
         player.hasVoted = true;
         player.vote = vote;
       }
+      
+      // If this is the current player, update their local state too
+      if (currentPlayer.value && currentPlayer.value.id === playerId) {
+        currentPlayer.value.hasVoted = true;
+        currentPlayer.value.vote = vote;
+        // Set the selected card to show the vote in the UI
+        selectedCard.value = vote;
+      }
+      
+      // Save updated state
+      savePersistedState();
       
       // Add system message
       addChatMessage({
@@ -1087,6 +1145,9 @@ export const useGameStore = defineStore("game", () => {
       // Update session with imported stories
       currentSession.value.stories = [...currentSession.value.stories, ...importedStories];
       
+      // Update game phase after importing stories
+      updateGamePhase();
+      
       // Save updated state
       savePersistedState();
       
@@ -1100,10 +1161,22 @@ export const useGameStore = defineStore("game", () => {
   }
 
   function sendWebSocketMessage(message: Record<string, unknown>) {
+    console.log("📤 Attempting to send WebSocket message:", message);
+    console.log("WebSocket connection state:", {
+      exists: !!wsConnection.value,
+      readyState: wsConnection.value?.readyState,
+      readyStateText: wsConnection.value?.readyState === WebSocket.OPEN ? 'OPEN' : 
+                     wsConnection.value?.readyState === WebSocket.CONNECTING ? 'CONNECTING' :
+                     wsConnection.value?.readyState === WebSocket.CLOSING ? 'CLOSING' :
+                     wsConnection.value?.readyState === WebSocket.CLOSED ? 'CLOSED' : 'UNKNOWN'
+    });
+    
     if (wsConnection.value && wsConnection.value.readyState === WebSocket.OPEN) {
       wsConnection.value.send(JSON.stringify(message));
+      console.log("✅ Message sent successfully");
     } else {
-      console.warn("WebSocket not connected, cannot send message:", message);
+      console.warn("❌ WebSocket not connected, cannot send message:", message);
+      console.warn("WebSocket readyState:", wsConnection.value?.readyState);
     }
   }
 
