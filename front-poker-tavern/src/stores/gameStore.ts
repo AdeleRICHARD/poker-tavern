@@ -71,6 +71,7 @@ export const useGameStore = defineStore("game", () => {
   const localPlayerId = ref<string | null>(null);
   const localStoryIndex = ref(0); // Independent story navigation
   const wsConnection = ref<WebSocket | null>(null);
+  const voteUpdateTrigger = ref(0); // Trigger for Phaser vote updates
 
   // Mock data for testing
   const availableCharacters = ref([
@@ -1098,6 +1099,9 @@ export const useGameStore = defineStore("game", () => {
         text: `${playerName} cast their vote`,
         type: "system",
       });
+      
+      // Trigger UI update in Phaser
+      voteUpdateTrigger.value++;
     }
   }
 
@@ -1192,6 +1196,7 @@ export const useGameStore = defineStore("game", () => {
     availableCharacters,
     pokerCards,
     localStoryIndex,
+    voteUpdateTrigger,
 
     // Computed
     currentStory,

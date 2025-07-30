@@ -510,6 +510,19 @@ watch(
     },
 );
 
+// Watch for vote updates triggered by WebSocket messages
+watch(
+    () => gameStore.voteUpdateTrigger,
+    () => {
+        console.log("🎯 Vote update triggered in TavernView - updating Phaser UI");
+        // Update all players' vote cards after a vote is cast via WebSocket
+        gameStore.players.forEach((player) => {
+            console.log(`Updating player ${player.id} vote status: hasVoted=${player.hasVoted}`);
+            gameManager.updatePlayerVote(player.id, player.hasVoted);
+        });
+    },
+);
+
 // Methods
 function selectCharacter(characterId: string) {
     gameStore.selectCharacter(characterId);
