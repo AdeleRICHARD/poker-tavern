@@ -327,6 +327,7 @@ func main() {
 	http.HandleFunc("/auth/jira/callback", jiraCallbackHandler) // JIRA OAuth callback
 	http.HandleFunc("/jira/status", jiraStatusHandler)         // JIRA connection status
 	http.HandleFunc("/jira/search", jiraSearchHandler)         // JIRA issue search
+	http.HandleFunc("/jira/import-issues", importSelectedJiraIssuesHandler) // Import selected JIRA issues
 	
 	// Demo OAuth endpoint for testing popup flow
 	http.HandleFunc("/demo/oauth", demoOAuthHandler)
@@ -781,6 +782,25 @@ func jiraSearchHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to search JIRA issues: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Get session for broadcasting
+	sessionsMutex.Lock()
+	session, sessionExists := sessions[sessionID]
+	sessionsMutex.Unlock()
+
+	// Broadcast the search results to all clients in the session
+	go func() {
+		hub := getOrCreateHub(sessionID)
+		message := map[string]interface{}{
+			"type":   "jira_issues_searched",
+			"issues": issues,
+		}
+		if sessionExists {
+			message["session"] = session // Include session for context
+		}
+		msgBytes, _ := json.Marshal(message)
+		hub.broadcast <- msgBytes
+	}()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -1321,6 +1341,60 @@ func demoOAuthHandler(w http.ResponseWriter, r *http.Request) {
 		</body>
 		</html>
 	`, userDataJSON, frontendOrigin)))
+}
+
+// importSelectedJiraIssuesHandler allows importing specific JIRA issues as stories
+func importSelectedJiraIssuesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		SessionID string  `json:"sessionId"`
+		Stories   []Story `json:"stories"` // Array of Story objects to import
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if payload.SessionID == "" || len(payload.Stories) == 0 {
+		http.Error(w, "SessionID and stories are required", http.StatusBadRequest)
+		return
+	}
+
+	// Get the session
+	sessionsMutex.Lock()
+	session, ok := sessions[payload.SessionID]
+	if !ok {
+		sessionsMutex.Unlock()
+		http.Error(w, "Session not found", http.StatusNotFound)
+		return
+	}
+
+	// Add stories to session
+	session.Stories = append(session.Stories, payload.Stories...)
+	sessionsMutex.Unlock()
+
+	// Broadcast the update to all clients in the session
+	go func() {
+		hub := getOrCreateHub(payload.SessionID)
+		message := map[string]interface{}{
+			"type":    "stories_imported",
+			"stories": payload.Stories,
+			"session": session,
+		}
+		msgBytes, _ := json.Marshal(message)
+		hub.broadcast <- msgBytes
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"imported": len(payload.Stories),
+		"stories":  payload.Stories,
+		"success":  true,
+	})
 }
 
 // corsMiddleware adds CORS headers to every response.
