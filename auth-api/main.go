@@ -312,8 +312,8 @@ func main() {
 		}
 	}
 
-	// Initialize database connection
-	InitDB()
+	// Note: Using in-memory storage for simplicity
+	// For production, consider adding database persistence
 
 	// Define endpoints.
 	http.HandleFunc("/health", healthHandler)                  // Health check endpoint.
