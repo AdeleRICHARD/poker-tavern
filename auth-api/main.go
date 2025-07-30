@@ -96,19 +96,30 @@ func (h *Hub) run() {
 		case client := <-h.register:
 			h.mutex.Lock()
 			h.clients[client] = true
+			log.Printf("➕ Client registered. Total clients: %d", len(h.clients))
 			h.mutex.Unlock()
 		case client := <-h.unregister:
 			h.mutex.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				client.Close()
+				log.Printf("➖ Client unregistered. Total clients: %d", len(h.clients))
 			}
 			h.mutex.Unlock()
 		case message := <-h.broadcast:
 			h.mutex.Lock()
+			log.Printf("📢 Broadcasting message to %d clients", len(h.clients))
+			// Log the message content for debugging, truncate if too long
+			logMsg := string(message)
+			if len(logMsg) > 200 {
+				logMsg = logMsg[:200] + "..."
+			}
+			log.Printf("Broadcasting message content: %s", logMsg)
+			
 			for client := range h.clients {
 				if err := client.WriteMessage(websocket.TextMessage, message); err != nil {
-					log.Printf("WebSocket write error: %v", err)
+					log.Printf("❌ WebSocket write error: %v", err)
+					// On write error, unregister the client
 					delete(h.clients, client)
 					client.Close()
 				}
@@ -456,7 +467,8 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	sessionsMutex.Unlock()
 
-	// Broadcast the updated session to WebSocket clients (in a goroutine for non-blocking).
+// Broadcast the updated session to WebSocket clients (in a goroutine for non-blocking).
+	log.Printf("🎭 Player %s joined session %s. Broadcasting to connected clients...", payload.PlayerName, payload.SessionID)
 	go func() {
 		hub := getOrCreateHub(payload.SessionID)
 		message := map[string]interface{}{
@@ -464,6 +476,7 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 			"session": session,
 		}
 		msgBytes, _ := json.Marshal(message)
+		log.Printf("🎭 Broadcasting player_joined message for session %s", payload.SessionID)
 		hub.broadcast <- msgBytes
 	}()
 
@@ -1122,7 +1135,10 @@ func importJiraHandler(w http.ResponseWriter, r *http.Request) {
 // Expects query param: ?sessionId=xxx
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("sessionId")
+	log.Printf("🔌 WebSocket connection attempt for session: %s from %s", sessionID, r.RemoteAddr)
+	
 	if sessionID == "" {
+		log.Printf("❌ WebSocket rejected: missing sessionId")
 		http.Error(w, "sessionId query param required", http.StatusBadRequest)
 		return
 	}
@@ -1132,24 +1148,31 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	session, ok := sessions[sessionID]
 	sessionsMutex.Unlock()
 	if !ok {
+		log.Printf("❌ WebSocket rejected: session %s not found", sessionID)
 		http.Error(w, "Session not found", http.StatusNotFound)
 		return
 	}
 
+	log.Printf("✅ Session %s found, has %d players", sessionID, len(session.Players))
+
 	// Upgrade to WebSocket.
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
+			log.Printf("🔍 WebSocket origin check: %s", r.Header.Get("Origin"))
 			return true // Adjust for production security.
 		},
 	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade error: %v", err)
+		log.Printf("❌ WebSocket upgrade error: %v", err)
 		return
 	}
 
+	log.Printf("🚀 WebSocket connection established for session %s", sessionID)
+
 	// Register the client in the session's hub.
 	hub := getOrCreateHub(sessionID)
+	log.Printf("📡 Registering client with hub for session %s (current clients: %d)", sessionID, len(hub.clients))
 	hub.register <- conn
 
 	// Goroutine to handle reading messages (now includes chat handling).
