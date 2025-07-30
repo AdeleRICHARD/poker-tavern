@@ -2,9 +2,16 @@ services:
   - type: web
     name: planning-poker-api
     env: go
-    buildCommand: go build -o bin/server .
-    startCommand: ./bin/server
+    buildCommand: go build -o main .
+    startCommand: ./main
     plan: free
+    buildFilter:
+      paths:
+      - main.go
+      - go.mod
+      - go.sum
+      ignoredPaths: []
+    rootDir: .
     envVars:
       - key: PORT
         sync: false
