@@ -146,17 +146,6 @@
 
                 <JiraImport @issue-selected="onIssueSelected" />
                 
-                <!-- Current Issue for Voting -->
-                <div v-if="selectedIssueForVoting" class="current-issue-display">
-                    <h3>🎯 Current Issue</h3>
-                    <div class="issue-info">
-                        <h4>{{ selectedIssueForVoting.title }}</h4>
-                        <p v-if="selectedIssueForVoting.description">{{ selectedIssueForVoting.description }}</p>
-                        <div class="issue-meta">
-                            <span v-if="selectedIssueForVoting.jiraKey" class="jira-key">{{ selectedIssueForVoting.jiraKey }}</span>
-                        </div>
-                    </div>
-                </div>
                 
                 <div v-if="!gameStore.currentSession" class="no-session-notice">
                     <h3>🏠 No Session</h3>
@@ -805,6 +794,7 @@ function onIssueSelected(issue: any) {
 /* Control panel */
 .control-panel {
     overflow-y: auto;
+    overflow-x: hidden; /* Prevent horizontal scrollbar */
     max-height: 100%;
 }
 
@@ -913,10 +903,12 @@ function onIssueSelected(issue: any) {
     display: flex;
     gap: 0.5rem;
     align-items: center;
+    min-width: 0; /* Allow flex items to shrink */
 }
 
 .session-id-input {
     flex: 1;
+    min-width: 0; /* Allow input to shrink */
     padding: 0.75rem;
     border: 2px solid #7f8c8d;
     border-radius: 6px;
@@ -926,6 +918,9 @@ function onIssueSelected(issue: any) {
     font-family: monospace;
     cursor: pointer;
     transition: border-color 0.3s ease;
+    overflow: hidden; /* Prevent text overflow */
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .session-id-input:hover {

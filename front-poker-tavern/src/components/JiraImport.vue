@@ -39,13 +39,14 @@
                 <h4>🔍 Search Results</h4>
                 <div class="results-list">
                     <div v-for="issue in searchResults" :key="issue.id" class="issue-card">
-                        <div class="issue-content">
-                            <div class="issue-title">{{ issue.title }}</div>
-                            <div class="issue-actions">
-                                <button @click="showIssueModal(issue)" class="view-btn">
-                                    Import
-                                </button>
-                            </div>
+                        <div class="issue-title">{{ issue.title }}</div>
+                        <div class="issue-actions">
+                            <button @click="viewIssue(issue)" class="view-btn">
+                                View
+                            </button>
+                            <button @click="importIssueDirectly(issue)" class="import-btn">
+                                Import
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -57,32 +58,31 @@
             <h4>📋 Issues Overview</h4>
             <div class="issues-list">
                 <div v-for="issue in importedIssues" :key="issue.uniqueKey" class="issue-card">
-                    <div class="issue-content">
-                        <div class="issue-title">{{ issue.title }}</div>
-                        <div class="issue-actions">
-                            <div class="voting-indicator">
-                                <span v-if="issue.hasVoted" class="vote-status voted" title="You have voted">✅</span>
-                                <span v-else class="vote-status not-voted" title="Not voted yet">⭕</span>
-                            </div>
-                            <button @click="selectIssueForVoting(issue)" class="select-btn" :class="{ active: isSelectedForVoting(issue) }">
-                                {{ isSelectedForVoting(issue) ? 'Selected' : 'Select' }}
-                            </button>
-                            <button @click="viewIssue(issue)" class="view-btn">
-                                View
-                            </button>
+                    <div class="issue-title">{{ issue.title }}</div>
+                    <div class="issue-actions">
+                        <div class="voting-indicator">
+                            <span v-if="issue.hasVoted" class="vote-status voted" title="You have voted">✅</span>
+                            <span v-else class="vote-status not-voted" title="Not voted yet">⭕</span>
                         </div>
+                        <button @click="selectIssueForVoting(issue)" class="select-btn" :class="{ active: isSelectedForVoting(issue) }">
+                            {{ isSelectedForVoting(issue) ? 'Selected' : 'Select' }}
+                        </button>
+                        <button @click="viewIssue(issue)" class="view-btn">
+                            View
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
         
-        <!-- Quest Modal -->
+        <!-- Issue Details Modal -->
         <JiraIssueModal 
-            ref="issueModal" 
-            :issue="selectedIssue" 
+            ref="issueModal"
+            :issue="selectedIssue"
             :mode="modalMode"
             @import="handleIssueImport"
         />
+        
     </div>
 </template>
 
@@ -99,22 +99,25 @@ const searchQuery = ref('');
 const searchResults = ref<any[]>([]);
 const searchError = ref<string>('');
 const currentUser = ref<any>(null);
-const selectedIssue = ref<any>(null);
-const modalMode = ref<string>('view');
-const issueModal = ref<InstanceType<typeof JiraIssueModal>>();
 const jiraAuth = new SimpleJiraAuth();
 const selectedIssueForVoting = ref<any>(null);
+const selectedIssue = ref<any>(null);
+const modalMode = ref<'import' | 'view'>('view');
+const issueModal = ref<InstanceType<typeof JiraIssueModal>>();
 
 // Computed property to show imported stories (always visible regardless of JIRA connection)
 const importedIssues = computed(() => {
-    const issues = [];
+    const issues: any[] = [];
     
     // Show imported stories from the session (from localStorage)
     gameStore.currentSession?.stories?.forEach(story => {
+        // Check if the current player has voted on this story
+        const hasVoted = gameStore.currentSession?.persistentVotes?.[story.id]?.[gameStore.currentPlayer?.id] !== undefined;
+        
         issues.push({
             ...story,
             uniqueKey: `story_${story.id}`,
-            hasVoted: false // TODO: Connect to actual voting system
+            hasVoted: hasVoted
         });
     });
     
@@ -126,15 +129,6 @@ const allIssues = computed(() => {
     return importedIssues.value;
 });
 
-function handleIssueAction(issue: any) {
-    if (issue.isImported) {
-        // View imported issue
-        viewImportedStory(issue);
-    } else {
-        // Import new issue
-        showIssueModal(issue);
-    }
-}
 
 async function connectToJira() {
     if (!gameStore.currentSession?.id) {
@@ -209,25 +203,23 @@ async function importIssue(issue: any) {
     }
 }
 
-function showIssueModal(issue: any) {
-    selectedIssue.value = issue;
-    modalMode.value = 'import';
-    issueModal.value?.openModal();
-}
-
-function viewImportedStory(story: any) {
-    selectedIssue.value = story;
-    modalMode.value = 'view';
-    issueModal.value?.openModal();
-}
-
-function handleIssueImport(issue: any) {
+// Simple import function that directly imports the issue without modal
+function importIssueDirectly(issue: any) {
     importIssue(issue);
 }
 
+// View function that shows issue details in a modal
 function viewIssue(issue: any) {
+    console.log('Viewing issue:', issue);
     selectedIssue.value = issue;
     modalMode.value = 'view';
+    issueModal.value?.openModal();
+}
+
+// Show modal function for import
+function showIssueModal(issue: any) {
+    selectedIssue.value = issue;
+    modalMode.value = 'import';
     issueModal.value?.openModal();
 }
 
@@ -241,6 +233,11 @@ function selectIssueForVoting(issue: any) {
 
 function isSelectedForVoting(issue: any): boolean {
     return selectedIssueForVoting.value?.id === issue.id;
+}
+
+// Handle import from modal
+function handleIssueImport(issue: any) {
+    importIssue(issue);
 }
 
 // Define emits
@@ -262,6 +259,8 @@ onMounted(() => {
     padding: 0.75rem;
     margin-bottom: 1rem;
     min-height: 0; /* Allow shrinking */
+    overflow: hidden; /* Prevent any overflow from this component */
+    min-width: 0; /* Allow component to shrink */
 }
 
 .jira-import h3 {
@@ -423,6 +422,22 @@ onMounted(() => {
 
 .issues-overview {
     margin-top: 0.75rem;
+    background: rgba(52, 73, 94, 0.6);
+    border: 1px solid #8b4513;
+    border-radius: 6px;
+    padding: 0.75rem;
+    overflow: hidden; /* Prevent any overflow */
+    min-width: 0; /* Allow container to shrink */
+}
+
+.issues-overview h4 {
+    color: #ffd700;
+    margin: 0 0 0.75rem 0;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-align: left;
 }
 
 .issue-item {
@@ -496,6 +511,7 @@ onMounted(() => {
 .issues-list {
     max-height: 250px;
     overflow-y: auto;
+    overflow-x: hidden; /* Prevent horizontal scrollbar */
     border: 1px solid #8b4513;
     border-radius: 4px;
     background: rgba(255, 255, 255, 0.05);
@@ -505,6 +521,9 @@ onMounted(() => {
     padding: 0.75rem;
     border-bottom: 1px solid rgba(139, 69, 19, 0.3);
     transition: background-color 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .issue-card:last-child {
@@ -515,38 +534,34 @@ onMounted(() => {
     background: rgba(255, 255, 255, 0.08);
 }
 
-.issue-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-}
 
 .issue-title {
     color: #f4f4f4;
     font-size: 0.85rem;
     line-height: 1.3;
-    flex: 1;
     word-wrap: break-word;
     overflow-wrap: break-word;
     margin: 0;
     padding: 0;
+    white-space: normal; /* Allow text to wrap */
 }
 
 .issue-actions {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    flex-shrink: 0;
+    gap: 0.5rem;
+    width: 100%;
+    justify-content: flex-end;
 }
 
 .voting-indicator {
     display: flex;
     align-items: center;
+    margin-right: 0.25rem;
 }
 
 .vote-status {
-    font-size: 1.2rem;
+    font-size: 1rem;
     transition: transform 0.2s ease;
 }
 
@@ -562,9 +577,9 @@ onMounted(() => {
     background: linear-gradient(145deg, #8b6914, #daa520);
     border: 1px solid #daa520;
     color: #2c1810;
-    padding: 0.4rem 0.8rem;
+    padding: 0.3rem 0.6rem; /* Slightly smaller padding */
     border-radius: 4px;
-    font-size: 0.75rem;
+    font-size: 0.7rem; /* Slightly smaller font */
     cursor: pointer;
     transition: all 0.3s ease;
     font-weight: bold;
@@ -582,9 +597,9 @@ onMounted(() => {
     background: linear-gradient(145deg, #3498db, #2980b9);
     border: 1px solid #3498db;
     color: white;
-    padding: 0.4rem 0.8rem;
+    padding: 0.3rem 0.6rem; /* Slightly smaller padding */
     border-radius: 4px;
-    font-size: 0.75rem;
+    font-size: 0.7rem; /* Slightly smaller font */
     cursor: pointer;
     transition: all 0.3s ease;
     font-weight: bold;
@@ -794,6 +809,182 @@ onMounted(() => {
 
 .imported-stories-list::-webkit-scrollbar-thumb:hover {
     background: rgba(139, 69, 19, 0.8);
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+}
+
+.modal-content {
+    background: linear-gradient(145deg, #2c2c54, #2c3e50);
+    border: 3px solid #8b4513;
+    border-radius: 12px;
+    padding: 2rem;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    animation: modalAppear 0.3s ease-out;
+    min-width: 400px;
+}
+
+@keyframes modalAppear {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid #daa520;
+    padding-bottom: 1rem;
+}
+
+.modal-header h2 {
+    color: #ffd700;
+    margin: 0;
+    font-size: 1.4rem;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: #ecf0f1;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-btn:hover {
+    background: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+    transform: scale(1.1);
+}
+
+.modal-body {
+    color: #ecf0f1;
+}
+
+.issue-detail-section {
+    margin-bottom: 1.5rem;
+}
+
+.issue-detail-section h3 {
+    color: #ecf0f1;
+    margin: 0 0 1rem 0;
+    font-size: 1.2rem;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+.issue-meta {
+    margin-bottom: 1rem;
+}
+
+.jira-key {
+    background: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    border: 1px solid #3498db;
+    display: inline-block;
+}
+
+.issue-description {
+    background: rgba(52, 73, 94, 0.3);
+    border: 1px solid #7f8c8d;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.issue-description h4 {
+    color: #3498db;
+    margin: 0 0 0.75rem 0;
+    font-size: 1rem;
+}
+
+.description-content {
+    line-height: 1.6;
+    color: #bdc3c7;
+    font-size: 0.9rem;
+}
+
+.description-content p {
+    margin: 0 0 1rem 0;
+}
+
+.description-content ul, .description-content ol {
+    margin: 0 0 1rem 1.5rem;
+}
+
+.description-content li {
+    margin-bottom: 0.5rem;
+}
+
+.description-content a {
+    color: #3498db;
+    text-decoration: none;
+}
+
+.description-content a:hover {
+    color: #5dade2;
+    text-decoration: underline;
+}
+
+.no-description {
+    color: #95a5a6;
+    font-style: italic;
+    text-align: center;
+    margin: 1rem 0;
+}
+
+/* Import button styling for modal */
+.import-btn {
+    background: linear-gradient(145deg, #27ae60, #229954);
+    border: 1px solid #2ecc71;
+    color: white;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.import-btn:hover {
+    background: linear-gradient(145deg, #229954, #1e8449);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(46, 204, 113, 0.3);
 }
 
 /* Make component more compact on smaller screens */
