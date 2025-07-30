@@ -30,14 +30,15 @@ type Session struct {
 
 // Story represents an imported story (e.g., from Jira).
 type Story struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	JiraKey     string `json:"jiraKey,omitempty"`
+	ID               string `json:"id"`
+	Title            string `json:"title"`
+	Description      string `json:"description"`
+	JiraKey          string `json:"jiraKey,omitempty"`
+	EstimatedPoints  *int   `json:"estimatedPoints,omitempty"`
 	// JIRA-specific fields
-	Type        string `json:"type,omitempty"`
-	Status      string `json:"status,omitempty"`
-	Priority    string `json:"priority,omitempty"`
+	Type             string `json:"type,omitempty"`
+	Status           string `json:"status,omitempty"`
+	Priority         string `json:"priority,omitempty"`
 }
 
 // ChatMessage represents a chat entry.
@@ -309,10 +310,10 @@ func main() {
 		if !strings.Contains(err.Error(), "no such file or directory") && !strings.Contains(err.Error(), "cannot find the file") {
 			log.Printf("Warning: Error loading .env file: %v", err)
 		}
-		// In development, you might want to know the .env is missing
-		// Uncomment the line below if needed:
-		// log.Printf("Info: .env file not found, using environment variables")
 	}
+
+	// Initialize database connection
+	InitDB()
 
 	// Define endpoints.
 	http.HandleFunc("/health", healthHandler)                  // Health check endpoint.
