@@ -452,12 +452,17 @@ export const useGameStore = defineStore("game", () => {
       players.value = parsed.players || [];
       gamePhase.value = parsed.gamePhase || GamePhase.WAITING;
       localStoryIndex.value = parsed.localStoryIndex || 0;
-      isConnected.value = true;
 
       console.log(
         "Restored session state from localStorage:",
         parsed.sessionId,
       );
+
+      // Attempt to reconnect to WebSocket
+      if (currentSession.value.id) {
+        console.log(`Reconnecting to WebSocket for session ${currentSession.value.id}`);
+        connectWebSocket(currentSession.value.id);
+      }
     }
 
     // Load local player ID if not already loaded
