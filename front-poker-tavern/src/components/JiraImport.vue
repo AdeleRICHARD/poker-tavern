@@ -96,7 +96,7 @@ import { getApiUrl } from '@/config/api';
 const gameStore = useGameStore();
 const isConnected = ref(false);
 const isLoading = ref(false);
-const searchQuery = ref('project=IMMO AND Sprint="POKER" AND status="To Do" ORDER BY rank ASC');
+const searchQuery = ref('project=IMMO AND Sprint="POKER" AND status="To Do" AND "Story point estimate"=0 ORDER BY rank ASC');
 const searchResults = ref<any[]>([]);
 const searchError = ref<string>('');
 const currentUser = ref<any>(null);
