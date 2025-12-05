@@ -4,7 +4,7 @@ interface PlayerSprite {
   id: string;
   sprite: Phaser.GameObjects.Sprite;
   nameText: Phaser.GameObjects.Text;
-  voteCard: Phaser.GameObjects.Sprite | null;
+  voteCards: Phaser.GameObjects.Sprite[]; // Multiple cards for multiple stories
   statusIcon: Phaser.GameObjects.Sprite | null;
   position: { x: number; y: number };
   data: any;
@@ -312,17 +312,17 @@ export class TavernScene extends Phaser.Scene {
   addPlayer(playerId: string, playerData: any) {
     console.log("TavernScene.addPlayer called:", playerId, playerData);
 
-    // If player already exists, preserve their vote card
-    let existingVoteCard: Phaser.GameObjects.Sprite | null = null;
+    // If player already exists, preserve their vote cards
+    let existingVoteCards: Phaser.GameObjects.Sprite[] = [];
     let existingVote: string | undefined = undefined;
 
     if (this.players.has(playerId)) {
       console.log("Player already exists, preserving vote state:", playerId);
       const existingPlayer = this.players.get(playerId);
       if (existingPlayer) {
-        existingVoteCard = existingPlayer.voteCard;
+        existingVoteCards = existingPlayer.voteCards;
         existingVote = existingPlayer.data.vote;
-        // Only remove visual elements without the card
+        // Only remove visual elements without the cards
         existingPlayer.sprite.destroy();
         existingPlayer.nameText.destroy();
         existingPlayer.statusIcon?.destroy();
@@ -378,16 +378,24 @@ export class TavernScene extends Phaser.Scene {
       id: playerId,
       sprite: playerSprite,
       nameText,
-      voteCard: existingVoteCard, // Réutiliser la carte existante
+      voteCards: existingVoteCards, // Preserve existing cards
       statusIcon,
       position: freePosition,
       data: playerData,
     };
 
-    // If we had an existing card, reposition it
-    if (existingVoteCard) {
-      existingVoteCard.setPosition(freePosition.x, freePosition.y - 60);
-      console.log("Repositioned existing vote card for player:", playerId);
+    // If we had existing cards, reposition them
+    if (existingVoteCards.length > 0) {
+      existingVoteCards.forEach((card, index) => {
+        const centerX = 400;
+        const centerY = 300;
+        const cardDistance = 0.55;
+        const offset = index * 12; // Stack offset
+        const cardX = freePosition.x + (centerX - freePosition.x) * cardDistance + offset;
+        const cardY = freePosition.y + (centerY - freePosition.y) * cardDistance - (index * 5);
+        card.setPosition(cardX, cardY);
+      });
+      console.log("Repositioned existing vote cards for player:", playerId);
     }
 
     this.players.set(playerId, playerObj);
@@ -418,7 +426,7 @@ export class TavernScene extends Phaser.Scene {
         player.sprite,
         player.nameText,
         player.statusIcon,
-        player.voteCard,
+        ...player.voteCards,
       ],
       scale: 0,
       duration: 300,
@@ -427,15 +435,15 @@ export class TavernScene extends Phaser.Scene {
         player.sprite.destroy();
         player.nameText.destroy();
         player.statusIcon?.destroy();
-        player.voteCard?.destroy();
+        player.voteCards.forEach(card => card.destroy());
       },
     });
 
     this.players.delete(playerId);
   }
 
-  updatePlayerVote(playerId: string, hasVoted: boolean) {
-    console.log("TavernScene.updatePlayerVote called:", playerId, hasVoted);
+  updatePlayerVote(playerId: string, hasVoted: boolean, voteCount: number = 1) {
+    console.log("TavernScene.updatePlayerVote called:", playerId, hasVoted, "voteCount:", voteCount);
     const player = this.players.get(playerId);
     if (!player) {
       console.warn("Player not found for vote update:", playerId);
@@ -447,53 +455,47 @@ export class TavernScene extends Phaser.Scene {
       player.statusIcon.setTexture(hasVoted ? "voted-icon" : "waiting-icon");
     }
 
-    if (hasVoted && !player.voteCard) {
-      console.log("Creating vote card for player:", playerId);
+    // Only add cards if we need more than we have
+    if (hasVoted && player.voteCards.length < voteCount) {
+      const cardsToAdd = voteCount - player.voteCards.length;
+      console.log("Adding", cardsToAdd, "vote card(s) for player:", playerId);
       
-      // Calculate position on table (between player and center)
-      const centerX = 400;
-      const centerY = 300;
-      const cardDistance = 0.45; // 45% of the way from player to center
-      const cardX = player.position.x + (centerX - player.position.x) * cardDistance;
-      const cardY = player.position.y + (centerY - player.position.y) * cardDistance;
-      
-      // Add hidden card on the table
-      player.voteCard = this.add.sprite(cardX, cardY, "card-hidden");
-
-      // Ensure card is visible
-      player.voteCard.setDisplaySize(35, 48);
-      player.voteCard.setDepth(10); // Above other elements
-
-      console.log(
-        "Vote card created:",
-        player.voteCard,
-        "texture exists:",
-        this.textures.exists("card-hidden"),
-      );
-
-      // Card animation - slide in from player position
-      player.voteCard.setPosition(player.position.x, player.position.y);
-      player.voteCard.setScale(0);
-      this.tweens.add({
-        targets: player.voteCard,
-        x: cardX,
-        y: cardY,
-        scale: 1,
-        duration: 400,
-        ease: "Back.easeOut",
-      });
-    } else if (!hasVoted && player.voteCard) {
-      // Remove card
-      this.tweens.add({
-        targets: player.voteCard,
-        scale: 0,
-        duration: 200,
-        ease: "Back.easeIn",
-        onComplete: () => {
-          player.voteCard?.destroy();
-          player.voteCard = null;
-        },
-      });
+      for (let i = 0; i < cardsToAdd; i++) {
+        const cardIndex = player.voteCards.length;
+        const centerX = 400;
+        const centerY = 300;
+        const cardDistance = 0.55;
+        
+        // Calculate base position towards center
+        const baseCardX = player.position.x + (centerX - player.position.x) * cardDistance;
+        const baseCardY = player.position.y + (centerY - player.position.y) * cardDistance;
+        
+        // Stack cards with slight offset
+        const offsetX = cardIndex * 10;
+        const offsetY = -cardIndex * 4;
+        const cardX = baseCardX + offsetX;
+        const cardY = baseCardY + offsetY;
+        
+        // Create new card
+        const newCard = this.add.sprite(cardX, cardY, "card-hidden");
+        newCard.setDisplaySize(40, 55);
+        newCard.setDepth(10 + cardIndex);
+        
+        // Animation - slide from player to table
+        newCard.setPosition(player.position.x, player.position.y);
+        newCard.setScale(0);
+        this.tweens.add({
+          targets: newCard,
+          x: cardX,
+          y: cardY,
+          scale: 1,
+          duration: 400,
+          ease: "Back.easeOut",
+        });
+        
+        player.voteCards.push(newCard);
+      }
+      console.log("Vote cards updated, total cards:", player.voteCards.length);
     }
   }
 
@@ -508,13 +510,15 @@ export class TavernScene extends Phaser.Scene {
         playerId,
         "vote:",
         vote,
-        "hasCard:",
-        !!player.voteCard,
+        "hasCards:",
+        player.voteCards.length,
       );
-      if (vote && player.voteCard) {
+      // Reveal the last card (most recent vote)
+      const lastCard = player.voteCards[player.voteCards.length - 1];
+      if (vote && lastCard) {
         // Card flip animation
         this.tweens.add({
-          targets: player.voteCard,
+          targets: lastCard,
           scaleX: 0,
           duration: 150,
           ease: "Power2",
@@ -527,7 +531,7 @@ export class TavernScene extends Phaser.Scene {
               "exists:",
               this.textures.exists(textureKey),
             );
-            player.voteCard?.setTexture(textureKey);
+            lastCard?.setTexture(textureKey);
 
             // Add vote text above the card
             const voteText = this.add
@@ -544,7 +548,7 @@ export class TavernScene extends Phaser.Scene {
 
             // Card flip back
             this.tweens.add({
-              targets: player.voteCard,
+              targets: lastCard,
               scaleX: 1,
               duration: 150,
               ease: "Power2",
@@ -571,11 +575,9 @@ export class TavernScene extends Phaser.Scene {
     this.isVotesRevealed = false;
 
     this.players.forEach((player) => {
-      // Remove cards and set back to waiting
-      if (player.voteCard) {
-        player.voteCard.destroy();
-        player.voteCard = null;
-      }
+      // Remove all cards and set back to waiting
+      player.voteCards.forEach(card => card.destroy());
+      player.voteCards = [];
 
       if (player.statusIcon) {
         player.statusIcon.setTexture("waiting-icon");

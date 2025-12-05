@@ -73,15 +73,22 @@ export class GameManager {
     }
   }
 
-  syncInitialPlayers(players: any[]): void {
+  syncInitialPlayers(players: any[], persistentVotes: Record<string, Record<string, string>> = {}): void {
     const scene = this.getCurrentScene();
     if (scene) {
       players.forEach((player) => {
         scene.addPlayer(player.id, player);
         if (player.hasVoted) {
+          // Calculate total votes for this player across all stories
+          let voteCount = 0;
+          for (const storyVotes of Object.values(persistentVotes)) {
+            if (storyVotes && storyVotes[player.id]) {
+              voteCount++;
+            }
+          }
           // Delay to ensure sprite is created
           setTimeout(() => {
-            scene.updatePlayerVote(player.id, true);
+            scene.updatePlayerVote(player.id, true, Math.max(1, voteCount));
           }, 100);
         }
       });
@@ -95,10 +102,10 @@ export class GameManager {
     }
   }
 
-  updatePlayerVote(playerId: string, hasVoted: boolean): void {
+  updatePlayerVote(playerId: string, hasVoted: boolean, voteCount: number = 1): void {
     const scene = this.getCurrentScene();
     if (scene) {
-      scene.updatePlayerVote(playerId, hasVoted);
+      scene.updatePlayerVote(playerId, hasVoted, voteCount);
     }
   }
 

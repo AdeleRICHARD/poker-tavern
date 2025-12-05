@@ -343,7 +343,8 @@ onMounted(() => {
         setTimeout(() => {
             if (gameStore.players.length > 0) {
                 console.log("Syncing initial players to Phaser:", gameStore.players.length);
-                gameManager.syncInitialPlayers(gameStore.players);
+                const persistentVotes = gameStore.currentSession?.persistentVotes || {};
+                gameManager.syncInitialPlayers(gameStore.players, persistentVotes);
             }
             
             // If we have a restored current player, make sure it's added to Phaser
@@ -438,8 +439,17 @@ watch(
         console.log("🎯 Vote update triggered in TavernView - updating Phaser UI");
         // Update all players' vote cards after a vote is cast via WebSocket
         gameStore.players.forEach((player) => {
-            console.log(`Updating player ${player.id} vote status: hasVoted=${player.hasVoted}`);
-            gameManager.updatePlayerVote(player.id, player.hasVoted);
+            // Calculate vote count for this player
+            let voteCount = 0;
+            if (gameStore.currentSession) {
+                for (const storyVotes of Object.values(gameStore.currentSession.persistentVotes)) {
+                    if (storyVotes && storyVotes[player.id]) {
+                        voteCount++;
+                    }
+                }
+            }
+            console.log(`Updating player ${player.id} vote status: hasVoted=${player.hasVoted}, voteCount=${voteCount}`);
+            gameManager.updatePlayerVote(player.id, player.hasVoted, voteCount);
         });
     },
 );
@@ -464,21 +474,36 @@ function selectCard(cardValue: string) {
     gameStore.selectCard(cardValue);
 }
 
+// Helper to count total votes for a player across all stories
+function getPlayerVoteCount(playerId: string): number {
+    if (!gameStore.currentSession) return 0;
+    let count = 0;
+    for (const storyVotes of Object.values(gameStore.currentSession.persistentVotes)) {
+        if (storyVotes && storyVotes[playerId]) {
+            count++;
+        }
+    }
+    return count;
+}
+
 function submitVote() {
     console.log("Submitting vote for current player");
     gameStore.submitVote();
 
     if (gameStore.currentPlayer) {
+        const voteCount = getPlayerVoteCount(gameStore.currentPlayer.id);
         console.log(
             "Updating player vote in Phaser:",
             gameStore.currentPlayer.id,
+            "voteCount:", voteCount
         );
-        gameManager.updatePlayerVote(gameStore.currentPlayer.id, true);
+        gameManager.updatePlayerVote(gameStore.currentPlayer.id, true, voteCount);
 
-        // Update all players' vote cards after current player votes
+        // Update other players' vote cards (skip current player to avoid double call)
         gameStore.players.forEach((player) => {
-            if (player.hasVoted) {
-                gameManager.updatePlayerVote(player.id, true);
+            if (player.hasVoted && player.id !== gameStore.currentPlayer?.id) {
+                const playerVoteCount = getPlayerVoteCount(player.id);
+                gameManager.updatePlayerVote(player.id, true, playerVoteCount);
             }
         });
     }
@@ -562,7 +587,8 @@ function makeOthersVote() {
             if (player) {
                 player.hasVoted = true;
                 player.vote = randomVote;
-                gameManager.updatePlayerVote(player.id, true);
+                const voteCount = getPlayerVoteCount(player.id);
+                gameManager.updatePlayerVote(player.id, true, voteCount);
             }
         }
     });
@@ -632,11 +658,13 @@ function selectSessionId() {
 }
 
 function copySessionId() {
-    if (sessionIdInput.value) {
-        sessionIdInput.value.select();
-        document.execCommand("copy");
-        showCopied.value = true;
-        setTimeout(() => (showCopied.value = false), 2000);
+    if (gameStore.currentSession?.id) {
+        navigator.clipboard.writeText(gameStore.currentSession.id).then(() => {
+            showCopied.value = true;
+            setTimeout(() => (showCopied.value = false), 2000);
+        }).catch(err => {
+            console.error("Failed to copy:", err);
+        });
     }
 }
 
