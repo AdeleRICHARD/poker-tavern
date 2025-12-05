@@ -410,20 +410,11 @@ watch(
     () => gameStore.gamePhase,
     (newPhase) => {
         if (newPhase === GamePhase.REVEALED) {
-            // Global reveal - show votes for all stories
+            // Global reveal - pass all votes for all stories
             setTimeout(() => {
-                const votes: { [key: string]: string } = {};
-                if (gameStore.currentStory && gameStore.currentSession) {
-                    const currentStoryVotes =
-                        gameStore.currentSession.persistentVotes[
-                            gameStore.currentStory.id
-                        ] || {};
-                    Object.entries(currentStoryVotes).forEach(
-                        ([playerId, vote]) => {
-                            votes[playerId] = vote;
-                        },
-                    );
-                    gameManager.revealAllVotes(votes);
+                if (gameStore.currentSession) {
+                    // Pass the full persistentVotes structure (storyId -> playerId -> vote)
+                    gameManager.revealAllVotes(gameStore.currentSession.persistentVotes);
                 }
             }, 500);
         } else if (newPhase === GamePhase.VOTING) {

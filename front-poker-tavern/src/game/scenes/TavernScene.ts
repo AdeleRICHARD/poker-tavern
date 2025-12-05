@@ -172,40 +172,29 @@ export class TavernScene extends Phaser.Scene {
   private createCardTextures() {
     console.log("Creating card textures...");
 
-    // Hidden card
+    // Hidden card - brown back with gold border
     const hiddenGraphics = this.add.graphics();
-    hiddenGraphics.fillStyle(0x8b4513); // Brown
-    hiddenGraphics.fillRoundedRect(0, 0, 30, 40, 5);
-    hiddenGraphics.lineStyle(2, 0xdaa520); // Gold border
-    hiddenGraphics.strokeRoundedRect(0, 0, 30, 40, 5);
-    hiddenGraphics.generateTexture("card-hidden", 30, 40);
+    hiddenGraphics.fillStyle(0x8b4513);
+    hiddenGraphics.fillRoundedRect(0, 0, 40, 55, 5);
+    hiddenGraphics.lineStyle(3, 0xdaa520);
+    hiddenGraphics.strokeRoundedRect(0, 0, 40, 55, 5);
+    // Add decorative pattern
+    hiddenGraphics.lineStyle(1, 0xdaa520, 0.5);
+    hiddenGraphics.strokeRoundedRect(5, 5, 30, 45, 3);
+    hiddenGraphics.generateTexture("card-hidden", 40, 55);
     hiddenGraphics.destroy();
     console.log("Created card-hidden texture");
 
-    // Revealed cards for each value
-    const cardValues = ["0", "1", "2", "3", "5", "8", "13", "21", "?", "☕"];
-    cardValues.forEach((value) => {
-      const cardGraphics = this.add.graphics();
-      cardGraphics.fillStyle(0xf4f4f4); // White
-      cardGraphics.fillRoundedRect(0, 0, 30, 40, 5);
-      cardGraphics.lineStyle(2, 0x333333);
-      cardGraphics.strokeRoundedRect(0, 0, 30, 40, 5);
-
-      // Add value text on the card
-      const text = this.add
-        .text(15, 20, value, {
-          fontSize: "12px",
-          color: "#333333",
-          fontFamily: "Arial",
-          fontStyle: "bold",
-        })
-        .setOrigin(0.5);
-
-      cardGraphics.generateTexture(`card-${value}`, 30, 40);
-      cardGraphics.destroy();
-      text.destroy();
-      console.log(`Created card-${value} texture`);
-    });
+    // Revealed cards for each value - we'll draw text separately during reveal
+    // Just create a white card background texture
+    const cardBgGraphics = this.add.graphics();
+    cardBgGraphics.fillStyle(0xffffff);
+    cardBgGraphics.fillRoundedRect(0, 0, 40, 55, 5);
+    cardBgGraphics.lineStyle(2, 0x333333);
+    cardBgGraphics.strokeRoundedRect(0, 0, 40, 55, 5);
+    cardBgGraphics.generateTexture("card-revealed-bg", 40, 55);
+    cardBgGraphics.destroy();
+    console.log("Created card-revealed-bg texture");
   }
 
   private createUITextures() {
@@ -499,75 +488,175 @@ export class TavernScene extends Phaser.Scene {
     }
   }
 
-  revealAllVotes(votes: { [playerId: string]: string }) {
-    console.log("TavernScene.revealAllVotes called:", votes);
+  revealAllVotes(persistentVotes: { [storyId: string]: { [playerId: string]: string } }) {
+    console.log("TavernScene.revealAllVotes called:", persistentVotes);
     this.isVotesRevealed = true;
 
-    this.players.forEach((player, playerId) => {
-      const vote = votes[playerId];
-      console.log(
-        "Processing vote reveal for player:",
-        playerId,
-        "vote:",
-        vote,
-        "hasCards:",
-        player.voteCards.length,
-      );
-      // Reveal the last card (most recent vote)
-      const lastCard = player.voteCards[player.voteCards.length - 1];
-      if (vote && lastCard) {
-        // Card flip animation
-        this.tweens.add({
-          targets: lastCard,
-          scaleX: 0,
-          duration: 150,
-          ease: "Power2",
-          onComplete: () => {
-            // Change texture to show the vote
-            const textureKey = `card-${vote}`;
-            console.log(
-              "Setting card texture to:",
-              textureKey,
-              "exists:",
-              this.textures.exists(textureKey),
-            );
-            lastCard?.setTexture(textureKey);
-
-            // Add vote text above the card
-            const voteText = this.add
-              .text(player.position.x, player.position.y - 90, vote, {
-                fontSize: "18px",
-                color: "#FFD700",
-                fontFamily: "serif",
-                fontStyle: "bold",
-                stroke: "#000000",
-                strokeThickness: 2,
-              })
-              .setOrigin(0.5)
-              .setDepth(11);
-
-            // Card flip back
-            this.tweens.add({
-              targets: lastCard,
-              scaleX: 1,
-              duration: 150,
-              ease: "Power2",
-            });
-          },
-        });
-      }
+    // Extract all vote values per player (list of votes for each story they voted on)
+    const playerVotesMap = new Map<string, string[]>();
+    Object.values(persistentVotes).forEach(storyVotes => {
+      Object.entries(storyVotes).forEach(([playerId, vote]) => {
+        if (!playerVotesMap.has(playerId)) {
+          playerVotesMap.set(playerId, []);
+        }
+        playerVotesMap.get(playerId)!.push(vote);
+      });
     });
 
-    // Global reveal visual effect
-    const revealEffect = this.add.graphics();
-    revealEffect.fillStyle(0xffd700, 0.3);
-    revealEffect.fillCircle(400, 300, 400);
+    // Create a dark overlay for dramatic effect
+    const overlay = this.add.graphics();
+    overlay.fillStyle(0x000000, 0.7);
+    overlay.fillRect(0, 0, 800, 600);
+    overlay.setDepth(50);
+    overlay.setAlpha(0);
 
+    // Fade in overlay
     this.tweens.add({
-      targets: revealEffect,
-      alpha: 0,
-      duration: 1000,
-      onComplete: () => revealEffect.destroy(),
+      targets: overlay,
+      alpha: 1,
+      duration: 300,
+      onComplete: () => {
+        // Position for reveal display
+        let yPosition = 80;
+        const cardSpacing = 50;
+        const playerSpacing = 90;
+
+        // Convert players map to array and reveal each
+        const playersArray = Array.from(this.players.entries());
+        
+        playersArray.forEach(([playerId, player], pIndex) => {
+          // Get all votes for this player (one per story)
+          const playerVotes = playerVotesMap.get(playerId) || [];
+          
+          // Create player name header
+          const nameY = yPosition + pIndex * playerSpacing;
+          const playerHeader = this.add
+            .text(100, nameY, `${player.data.name}:`, {
+              fontSize: "20px",
+              color: "#FFD700",
+              fontFamily: "serif",
+              fontStyle: "bold",
+              stroke: "#000000",
+              strokeThickness: 3,
+            })
+            .setOrigin(0, 0.5)
+            .setDepth(100)
+            .setAlpha(0);
+
+          // Animate player name in
+          this.tweens.add({
+            targets: playerHeader,
+            alpha: 1,
+            x: 120,
+            duration: 300,
+            delay: pIndex * 200,
+          });
+
+          // Create cards for this player (all their vote cards)
+          player.voteCards.forEach((card, cardIndex) => {
+            const cardX = 250 + cardIndex * cardSpacing;
+            const cardY = nameY;
+            
+            // Get the vote value for this specific card (by index)
+            const voteValue = playerVotes[cardIndex] || "?";
+            
+            // Move card to reveal position with animation
+            this.tweens.add({
+              targets: card,
+              x: cardX,
+              y: cardY,
+              scale: 1.2,
+              depth: 100 + cardIndex,
+              duration: 400,
+              delay: pIndex * 200 + cardIndex * 100,
+              ease: "Back.easeOut",
+              onComplete: () => {
+                // Flip card
+                this.tweens.add({
+                  targets: card,
+                  scaleX: 0,
+                  duration: 100,
+                  onComplete: () => {
+                    // Change to revealed texture
+                    card.setTexture("card-revealed-bg");
+                    
+                    // Add vote value text on the card (using voteValue from parent scope)
+                    const voteLabel = this.add
+                      .text(cardX, cardY, voteValue, {
+                        fontSize: "22px",
+                        color: "#333333",
+                        fontFamily: "Arial",
+                        fontStyle: "bold",
+                      })
+                      .setOrigin(0.5)
+                      .setDepth(101 + cardIndex);
+
+                    // Flip back
+                    this.tweens.add({
+                      targets: card,
+                      scaleX: 1.2,
+                      duration: 100,
+                    });
+                  },
+                });
+              },
+            });
+          });
+        });
+
+        // Add "Tap to close" text
+        const closeText = this.add
+          .text(400, 550, "🎉 Votes Revealed! Click anywhere to continue...", {
+            fontSize: "18px",
+            color: "#FFFFFF",
+            fontFamily: "serif",
+          })
+          .setOrigin(0.5)
+          .setDepth(100)
+          .setAlpha(0);
+
+        this.tweens.add({
+          targets: closeText,
+          alpha: 1,
+          duration: 500,
+          delay: playersArray.length * 200 + 500,
+        });
+
+        // Allow click to dismiss
+        this.input.once("pointerdown", () => {
+          // Fade out overlay and clean up
+          this.tweens.add({
+            targets: [overlay, closeText],
+            alpha: 0,
+            duration: 300,
+            onComplete: () => {
+              overlay.destroy();
+              closeText.destroy();
+              // Return cards to original positions
+              this.players.forEach((player) => {
+                player.voteCards.forEach((card, idx) => {
+                  const centerX = 400;
+                  const centerY = 300;
+                  const cardDistance = 0.55;
+                  const baseCardX = player.position.x + (centerX - player.position.x) * cardDistance;
+                  const baseCardY = player.position.y + (centerY - player.position.y) * cardDistance;
+                  const offsetX = idx * 10;
+                  const offsetY = -idx * 4;
+                  
+                  this.tweens.add({
+                    targets: card,
+                    x: baseCardX + offsetX,
+                    y: baseCardY + offsetY,
+                    scale: 1,
+                    depth: 10 + idx,
+                    duration: 300,
+                  });
+                });
+              });
+            },
+          });
+        });
+      },
     });
   }
 
