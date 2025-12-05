@@ -779,6 +779,17 @@ function onIssueSelected(issue: any) {
     selectedIssueForVoting.value = issue;
     console.log('Issue selected for voting:', issue.title);
     
+    // Find the index of this story in the session and navigate to it
+    if (gameStore.currentSession?.stories) {
+        const storyIndex = gameStore.currentSession.stories.findIndex(
+            (s) => s.id === issue.id
+        );
+        if (storyIndex !== -1) {
+            gameStore.navigateToStory(storyIndex);
+            console.log('Navigated to story index:', storyIndex);
+        }
+    }
+    
     // Add a chat message about the selection
     gameStore.addChatMessage({
         author: "System",
