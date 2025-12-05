@@ -97,12 +97,15 @@ class SimpleJiraAuth {
 
   /**
    * Check if the session is already authenticated with JIRA
-   * @param sessionId - The session ID to check
+   * @param sessionId - The session ID (optional for API token mode)
    * @returns Promise that resolves with connection status
    */
-  async isAuthenticated(sessionId: string): Promise<boolean> {
+  async isAuthenticated(sessionId?: string): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/jira/status?sessionId=${sessionId}`);
+      const url = sessionId 
+        ? `${this.baseUrl}/jira/status?sessionId=${sessionId}`
+        : `${this.baseUrl}/jira/status`;
+      const response = await fetch(url);
       
       if (!response.ok) {
         return false;
@@ -118,13 +121,16 @@ class SimpleJiraAuth {
 
   /**
    * Search for JIRA issues
-   * @param sessionId - The session ID
+   * @param sessionId - The session ID (optional for API token mode)
    * @param query - JQL query string
    * @returns Promise that resolves with array of issues
    */
-  async searchIssues(sessionId: string, query: string): Promise<any[]> {
+  async searchIssues(sessionId: string | undefined, query: string): Promise<any[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/jira/search?sessionId=${sessionId}&q=${encodeURIComponent(query)}`);
+      const url = sessionId
+        ? `${this.baseUrl}/jira/search?sessionId=${sessionId}&q=${encodeURIComponent(query)}`
+        : `${this.baseUrl}/jira/search?q=${encodeURIComponent(query)}`;
+      const response = await fetch(url);
       
       if (!response.ok) {
         throw new Error(`Failed to search issues: ${response.statusText}`);

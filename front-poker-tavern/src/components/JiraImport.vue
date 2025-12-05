@@ -96,7 +96,7 @@ import { getApiUrl } from '@/config/api';
 const gameStore = useGameStore();
 const isConnected = ref(false);
 const isLoading = ref(false);
-const searchQuery = ref('');
+const searchQuery = ref('project=IMMO AND Sprint="POKER" AND status="To Do" ORDER BY rank ASC');
 const searchResults = ref<any[]>([]);
 const searchError = ref<string>('');
 const currentUser = ref<any>(null);
@@ -181,6 +181,11 @@ async function checkConnectionStatus() {
     try {
         const connected = await jiraAuth.isAuthenticated(gameStore.currentSession.id);
         isConnected.value = connected;
+        
+        // Auto-load POKER tickets if connected
+        if (connected && searchResults.value.length === 0) {
+            await searchIssues();
+        }
     } catch (error) {
         console.error('Failed to check connection status:', error);
     }

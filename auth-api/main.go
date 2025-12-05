@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,25 +22,25 @@ import (
 
 // Session represents a Planning Poker session.
 type Session struct {
-	SessionID       string                            `json:"sessionId"`
-	Name            string                            `json:"name"`
-	Players         []string                          `json:"players"`
-	Stories         []Story                           `json:"stories"`
-	ChatMessages    []ChatMessage                     `json:"chatMessages"`
-	PersistentVotes map[string]map[string]string      `json:"persistentVotes,omitempty"`
+	SessionID       string                       `json:"sessionId"`
+	Name            string                       `json:"name"`
+	Players         []string                     `json:"players"`
+	Stories         []Story                      `json:"stories"`
+	ChatMessages    []ChatMessage                `json:"chatMessages"`
+	PersistentVotes map[string]map[string]string `json:"persistentVotes,omitempty"`
 }
 
 // Story represents an imported story (e.g., from Jira).
 type Story struct {
-	ID               string `json:"id"`
-	Title            string `json:"title"`
-	Description      string `json:"description"`
-	JiraKey          string `json:"jiraKey,omitempty"`
-	EstimatedPoints  *int   `json:"estimatedPoints,omitempty"`
+	ID              string `json:"id"`
+	Title           string `json:"title"`
+	Description     string `json:"description"`
+	JiraKey         string `json:"jiraKey,omitempty"`
+	EstimatedPoints *int   `json:"estimatedPoints,omitempty"`
 	// JIRA-specific fields
-	Type             string `json:"type,omitempty"`
-	Status           string `json:"status,omitempty"`
-	Priority         string `json:"priority,omitempty"`
+	Type     string `json:"type,omitempty"`
+	Status   string `json:"status,omitempty"`
+	Priority string `json:"priority,omitempty"`
 }
 
 // ChatMessage represents a chat entry.
@@ -116,7 +117,7 @@ func (h *Hub) run() {
 				logMsg = logMsg[:200] + "..."
 			}
 			log.Printf("Broadcasting message content: %s", logMsg)
-			
+
 			for client := range h.clients {
 				if err := client.WriteMessage(websocket.TextMessage, message); err != nil {
 					log.Printf("❌ WebSocket write error: %v", err)
@@ -154,14 +155,14 @@ func min(a, b int) int {
 // extractTextFromADF recursively extracts formatted text from Atlassian Document Format (ADF)
 func extractTextFromADF(node map[string]interface{}) string {
 	var text strings.Builder
-	
+
 	// Get the node type
 	nodeType, hasType := node["type"]
 	typeStr := ""
 	if hasType {
 		typeStr, _ = nodeType.(string)
 	}
-	
+
 	// Handle different node types with formatting
 	switch typeStr {
 	case "heading":
@@ -189,7 +190,7 @@ func extractTextFromADF(node map[string]interface{}) string {
 		}
 		text.WriteString(fmt.Sprintf("</%s>", tag))
 		return text.String()
-	
+
 	case "paragraph":
 		text.WriteString("<p>")
 		if content, exists := node["content"]; exists {
@@ -203,7 +204,7 @@ func extractTextFromADF(node map[string]interface{}) string {
 		}
 		text.WriteString("</p>")
 		return text.String()
-	
+
 	case "text":
 		// Handle text with potential marks (bold, italic, etc.)
 		textContent := ""
@@ -212,7 +213,7 @@ func extractTextFromADF(node map[string]interface{}) string {
 				textContent = str
 			}
 		}
-		
+
 		// Check for marks (bold, italic, etc.)
 		if marks, exists := node["marks"]; exists {
 			if marksArray, ok := marks.([]interface{}); ok {
@@ -246,7 +247,7 @@ func extractTextFromADF(node map[string]interface{}) string {
 		}
 		text.WriteString(textContent)
 		return text.String()
-	
+
 	case "emoji":
 		// Handle emojis
 		if attrs, exists := node["attrs"]; exists {
@@ -259,13 +260,13 @@ func extractTextFromADF(node map[string]interface{}) string {
 			}
 		}
 		return text.String()
-	
+
 	case "hardBreak":
 		return "<br>"
-	
+
 	case "rule":
 		return "<hr>"
-	
+
 	case "panel":
 		// Handle Jira panels (info, warning, etc.)
 		panelType := "info"
@@ -290,7 +291,7 @@ func extractTextFromADF(node map[string]interface{}) string {
 		}
 		text.WriteString("</div>")
 		return text.String()
-	
+
 	default:
 		// For unknown types or nodes without type, process content recursively
 		if content, exists := node["content"]; exists {
@@ -302,7 +303,7 @@ func extractTextFromADF(node map[string]interface{}) string {
 				}
 			}
 		}
-	
+
 		// If it's a text node without type
 		if textContent, exists := node["text"]; exists {
 			if str, ok := textContent.(string); ok {
@@ -310,7 +311,7 @@ func extractTextFromADF(node map[string]interface{}) string {
 			}
 		}
 	}
-	
+
 	return text.String()
 }
 
@@ -333,14 +334,14 @@ func main() {
 	http.HandleFunc("/session/join", joinSessionHandler)       // POST request to join a session.
 	http.HandleFunc("/session/import-jira", importJiraHandler) // POST request to import Jira issues.
 	http.HandleFunc("/ws", wsHandler)                          // WebSocket endpoint for real-time updates (including chat).
-	
+
 	// JIRA integration endpoints
-	http.HandleFunc("/api/jira/auth-url", jiraAuthUrlHandler)   // Get JIRA OAuth URL
-	http.HandleFunc("/auth/jira/callback", jiraCallbackHandler) // JIRA OAuth callback
-	http.HandleFunc("/jira/status", jiraStatusHandler)         // JIRA connection status
-	http.HandleFunc("/jira/search", jiraSearchHandler)         // JIRA issue search
+	http.HandleFunc("/api/jira/auth-url", jiraAuthUrlHandler)               // Get JIRA OAuth URL
+	http.HandleFunc("/auth/jira/callback", jiraCallbackHandler)             // JIRA OAuth callback
+	http.HandleFunc("/jira/status", jiraStatusHandler)                      // JIRA connection status
+	http.HandleFunc("/jira/search", jiraSearchHandler)                      // JIRA issue search
 	http.HandleFunc("/jira/import-issues", importSelectedJiraIssuesHandler) // Import selected JIRA issues
-	
+
 	// Demo OAuth endpoint for testing popup flow
 	http.HandleFunc("/demo/oauth", demoOAuthHandler)
 
@@ -468,7 +469,7 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	sessionsMutex.Unlock()
 
-// Broadcast the updated session to WebSocket clients (in a goroutine for non-blocking).
+	// Broadcast the updated session to WebSocket clients (in a goroutine for non-blocking).
 	log.Printf("🎭 Player %s joined session %s. Broadcasting to connected clients...", payload.PlayerName, payload.SessionID)
 	go func() {
 		hub := getOrCreateHub(payload.SessionID)
@@ -489,7 +490,7 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 func getBaseURL(r *http.Request) string {
 	// Use the Host header to determine the base URL
 	scheme := "http"
-	
+
 	// Check for HTTPS in multiple ways (for reverse proxies like Render)
 	if r.TLS != nil {
 		scheme = "https"
@@ -501,7 +502,7 @@ func getBaseURL(r *http.Request) string {
 		// Render always uses HTTPS for *.onrender.com domains
 		scheme = "https"
 	}
-	
+
 	return fmt.Sprintf("%s://%s", scheme, r.Host)
 }
 
@@ -525,7 +526,7 @@ func jiraAuthUrlHandler(w http.ResponseWriter, r *http.Request) {
 		demoMode = "true" // Default to demo mode for easy testing
 	}
 	demoModeEnabled := demoMode == "true"
-	
+
 	// Check if demo mode is enabled
 	if demoModeEnabled {
 		// Return demo OAuth URL for testing popup flow
@@ -533,17 +534,17 @@ func jiraAuthUrlHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"authUrl": demoURL,
-			"demo": "true",
+			"demo":    "true",
 		})
 		return
 	}
-	
+
 	if clientID == "" || clientSecret == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
-			"error": "JIRA OAuth not configured",
-			"message": "Please set JIRA_CLIENT_ID and JIRA_CLIENT_SECRET environment variables",
+			"error":              "JIRA OAuth not configured",
+			"message":            "Please set JIRA_CLIENT_ID and JIRA_CLIENT_SECRET environment variables",
 			"setup_instructions": "Run ./setup_oauth.sh to configure OAuth credentials or set DEMO_MODE=true",
 		})
 		return
@@ -572,51 +573,51 @@ func jiraAuthUrlHandler(w http.ResponseWriter, r *http.Request) {
 
 // jiraCallbackHandler handles OAuth 2.0 callback from JIRA
 func jiraCallbackHandler(w http.ResponseWriter, r *http.Request) {
-    // Log the full request for debugging
-    log.Printf("OAuth callback received: %s", r.URL.String())
-    log.Printf("Query parameters: %v", r.URL.Query())
-    
-    // Extract code and state from query
-    code := r.URL.Query().Get("code")
-    state := r.URL.Query().Get("state")
-    
-    log.Printf("Code: '%s', State: '%s'", code, state)
-    
-    if code == "" || state == "" {
-        // Check if there's an error parameter
-        errorParam := r.URL.Query().Get("error")
-        errorDesc := r.URL.Query().Get("error_description")
-        
-        log.Printf("OAuth error - Code: '%s', State: '%s', Error: '%s', Description: '%s'", 
-            code, state, errorParam, errorDesc)
-        
-        if errorParam != "" {
-            http.Error(w, fmt.Sprintf("OAuth error: %s - %s", errorParam, errorDesc), http.StatusBadRequest)
-        } else {
-            http.Error(w, "Code or state parameter missing", http.StatusBadRequest)
-        }
-        return
-    }
+	// Log the full request for debugging
+	log.Printf("OAuth callback received: %s", r.URL.String())
+	log.Printf("Query parameters: %v", r.URL.Query())
 
-    // Parse state to retrieve session ID
-    parts := strings.Split(state, "_")
-    if len(parts) != 2 {
-        http.Error(w, "Invalid state parameter", http.StatusBadRequest)
-        return
-    }
-    sessionID := parts[1]
+	// Extract code and state from query
+	code := r.URL.Query().Get("code")
+	state := r.URL.Query().Get("state")
 
-    // Exchange code for access token
-    clientID := os.Getenv("JIRA_CLIENT_ID")
-    clientSecret := os.Getenv("JIRA_CLIENT_SECRET")
-    if clientID == "" || clientSecret == "" {
-        http.Error(w, "JIRA OAuth not configured", http.StatusInternalServerError)
-        return
-    }
-    
+	log.Printf("Code: '%s', State: '%s'", code, state)
+
+	if code == "" || state == "" {
+		// Check if there's an error parameter
+		errorParam := r.URL.Query().Get("error")
+		errorDesc := r.URL.Query().Get("error_description")
+
+		log.Printf("OAuth error - Code: '%s', State: '%s', Error: '%s', Description: '%s'",
+			code, state, errorParam, errorDesc)
+
+		if errorParam != "" {
+			http.Error(w, fmt.Sprintf("OAuth error: %s - %s", errorParam, errorDesc), http.StatusBadRequest)
+		} else {
+			http.Error(w, "Code or state parameter missing", http.StatusBadRequest)
+		}
+		return
+	}
+
+	// Parse state to retrieve session ID
+	parts := strings.Split(state, "_")
+	if len(parts) != 2 {
+		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
+		return
+	}
+	sessionID := parts[1]
+
+	// Exchange code for access token
+	clientID := os.Getenv("JIRA_CLIENT_ID")
+	clientSecret := os.Getenv("JIRA_CLIENT_SECRET")
+	if clientID == "" || clientSecret == "" {
+		http.Error(w, "JIRA OAuth not configured", http.StatusInternalServerError)
+		return
+	}
+
 	// Get base URL from request to use correct host
 	baseURL := getBaseURL(r)
-	
+
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
 	data.Set("client_id", clientID)
@@ -624,74 +625,74 @@ func jiraCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	data.Set("code", code)
 	data.Set("redirect_uri", fmt.Sprintf("%s/auth/jira/callback", baseURL))
 
-    tokenResp, err := http.Post(
-        "https://auth.atlassian.com/oauth/token",
-        "application/x-www-form-urlencoded",
-        strings.NewReader(data.Encode()))
+	tokenResp, err := http.Post(
+		"https://auth.atlassian.com/oauth/token",
+		"application/x-www-form-urlencoded",
+		strings.NewReader(data.Encode()))
 
-    if err != nil {
-        http.Error(w, "Failed to exchange code: "+err.Error(), http.StatusInternalServerError)
-        return
-    }
-    defer tokenResp.Body.Close()
+	if err != nil {
+		http.Error(w, "Failed to exchange code: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer tokenResp.Body.Close()
 
-    var tokenData struct {
-        AccessToken string `json:"access_token"`
-        Scope       string `json:"scope"`
-        ExpiresIn   int    `json:"expires_in"`
-        TokenType   string `json:"token_type"`
-    }
-    if err := json.NewDecoder(tokenResp.Body).Decode(&tokenData); err != nil {
-        http.Error(w, "Invalid token response", http.StatusInternalServerError)
-        return
-    }
-    
-    // Log token details for debugging
-    log.Printf("Token received - Type: %s, Expires in: %d seconds", tokenData.TokenType, tokenData.ExpiresIn)
-    log.Printf("Granted scopes: %s", tokenData.Scope)
+	var tokenData struct {
+		AccessToken string `json:"access_token"`
+		Scope       string `json:"scope"`
+		ExpiresIn   int    `json:"expires_in"`
+		TokenType   string `json:"token_type"`
+	}
+	if err := json.NewDecoder(tokenResp.Body).Decode(&tokenData); err != nil {
+		http.Error(w, "Invalid token response", http.StatusInternalServerError)
+		return
+	}
 
-    // Fetch user information from Atlassian API
-    userReq, err := http.NewRequest("GET", "https://api.atlassian.com/me", nil)
-    if err != nil {
-        http.Error(w, "Failed to create user request", http.StatusInternalServerError)
-        return
-    }
-    userReq.Header.Set("Authorization", "Bearer "+tokenData.AccessToken)
-    
-    userResp, err := http.DefaultClient.Do(userReq)
-    if err != nil {
-        http.Error(w, "Failed to fetch user info", http.StatusInternalServerError)
-        return
-    }
-    defer userResp.Body.Close()
-    
-    var userData struct {
-        AccountID string `json:"account_id"`
-        Name      string `json:"name"`
-        Email     string `json:"email"`
-        Picture   string `json:"picture"`
-    }
-    if err := json.NewDecoder(userResp.Body).Decode(&userData); err != nil {
-        http.Error(w, "Failed to decode user info", http.StatusInternalServerError)
-        return
-    }
+	// Log token details for debugging
+	log.Printf("Token received - Type: %s, Expires in: %d seconds", tokenData.TokenType, tokenData.ExpiresIn)
+	log.Printf("Granted scopes: %s", tokenData.Scope)
 
-    // Save the token information for the relevant session
-    jiraConnectionsMutex.Lock()
-    jiraConnections[sessionID] = &JiraConnection{
-        SessionID: sessionID,
-        APIToken:  tokenData.AccessToken, // Use access token for API requests
-        Username:  userData.Email,
-        JiraURL:   "your-jira-instance", // Usually dynamically determined
-    }
-    jiraConnectionsMutex.Unlock()
+	// Fetch user information from Atlassian API
+	userReq, err := http.NewRequest("GET", "https://api.atlassian.com/me", nil)
+	if err != nil {
+		http.Error(w, "Failed to create user request", http.StatusInternalServerError)
+		return
+	}
+	userReq.Header.Set("Authorization", "Bearer "+tokenData.AccessToken)
+
+	userResp, err := http.DefaultClient.Do(userReq)
+	if err != nil {
+		http.Error(w, "Failed to fetch user info", http.StatusInternalServerError)
+		return
+	}
+	defer userResp.Body.Close()
+
+	var userData struct {
+		AccountID string `json:"account_id"`
+		Name      string `json:"name"`
+		Email     string `json:"email"`
+		Picture   string `json:"picture"`
+	}
+	if err := json.NewDecoder(userResp.Body).Decode(&userData); err != nil {
+		http.Error(w, "Failed to decode user info", http.StatusInternalServerError)
+		return
+	}
+
+	// Save the token information for the relevant session
+	jiraConnectionsMutex.Lock()
+	jiraConnections[sessionID] = &JiraConnection{
+		SessionID: sessionID,
+		APIToken:  tokenData.AccessToken, // Use access token for API requests
+		Username:  userData.Email,
+		JiraURL:   "your-jira-instance", // Usually dynamically determined
+	}
+	jiraConnectionsMutex.Unlock()
 
 	// Create user data for postMessage
 	userDataJSON, _ := json.Marshal(userData)
 
 	// Determine the frontend origin - try multiple approaches
 	frontendOrigin := "*" // Use wildcard origin for development
-	
+
 	// First, try to get origin from the referer header
 	referer := r.Header.Get("Referer")
 	if referer != "" {
@@ -699,7 +700,7 @@ func jiraCallbackHandler(w http.ResponseWriter, r *http.Request) {
 			frontendOrigin = fmt.Sprintf("%s://%s", refererURL.Scheme, refererURL.Host)
 		}
 	}
-	
+
 	// If no referer, try to get from Origin header
 	if frontendOrigin == "*" {
 		origin := r.Header.Get("Origin")
@@ -707,7 +708,7 @@ func jiraCallbackHandler(w http.ResponseWriter, r *http.Request) {
 			frontendOrigin = origin
 		}
 	}
-	
+
 	// Log for debugging
 	log.Printf("OAuth callback - Referer: %s, Origin: %s, Using origin: %s", referer, r.Header.Get("Origin"), frontendOrigin)
 
@@ -731,6 +732,18 @@ func jiraCallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 // jiraStatusHandler checks if a session is connected to JIRA
 func jiraStatusHandler(w http.ResponseWriter, r *http.Request) {
+	// If API token mode is enabled, always return connected
+	if isAPITokenMode() {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"connected": true,
+			"mode":      "api_token",
+			"message":   "Connected via API Token",
+		})
+		return
+	}
+
+	// Legacy OAuth mode
 	sessionID := r.URL.Query().Get("sessionId")
 	if sessionID == "" {
 		http.Error(w, "Session ID required", http.StatusBadRequest)
@@ -744,27 +757,20 @@ func jiraStatusHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"connected": connExists,
+		"mode":      "oauth",
 	})
+}
+
+// isAPITokenMode checks if API token authentication is configured
+func isAPITokenMode() bool {
+	email := os.Getenv("JIRA_EMAIL")
+	domain := os.Getenv("JIRA_DOMAIN")
+	token := os.Getenv("API_TOKEN_JIRA")
+	return email != "" && domain != "" && token != ""
 }
 
 // jiraSearchHandler enables searching for issues in JIRA
 func jiraSearchHandler(w http.ResponseWriter, r *http.Request) {
-	// Expect a session ID as a query parameter
-	sessionID := r.URL.Query().Get("sessionId")
-	if sessionID == "" {
-		http.Error(w, "Session ID required", http.StatusBadRequest)
-		return
-	}
-
-	// Validate that the session is connected to JIRA
-	jiraConnectionsMutex.Lock()
-	conn, connExists := jiraConnections[sessionID]
-	jiraConnectionsMutex.Unlock()
-	if !connExists {
-		http.Error(w, "JIRA connection not established", http.StatusUnauthorized)
-		return
-	}
-
 	// Get search query param
 	query := r.URL.Query().Get("q")
 	if query == "" {
@@ -789,7 +795,37 @@ func jiraSearchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Real JIRA search implementation
+	// Check if API token mode is enabled (no OAuth needed)
+	if isAPITokenMode() {
+		issues, err := searchJiraIssuesWithAPIToken(query)
+		if err != nil {
+			log.Printf("JIRA API Token search error: %v", err)
+			http.Error(w, "Failed to search JIRA issues: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"issues": issues,
+		})
+		return
+	}
+
+	// Legacy OAuth mode - requires session connection
+	sessionID := r.URL.Query().Get("sessionId")
+	if sessionID == "" {
+		http.Error(w, "Session ID required (OAuth mode)", http.StatusBadRequest)
+		return
+	}
+
+	jiraConnectionsMutex.Lock()
+	conn, connExists := jiraConnections[sessionID]
+	jiraConnectionsMutex.Unlock()
+	if !connExists {
+		http.Error(w, "JIRA connection not established", http.StatusUnauthorized)
+		return
+	}
+
 	issues, err := searchJiraIssues(conn, query)
 	if err != nil {
 		log.Printf("JIRA search error: %v", err)
@@ -797,29 +833,120 @@ func jiraSearchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get session for broadcasting
-	sessionsMutex.Lock()
-	session, sessionExists := sessions[sessionID]
-	sessionsMutex.Unlock()
-
-	// Broadcast the search results to all clients in the session
-	go func() {
-		hub := getOrCreateHub(sessionID)
-		message := map[string]interface{}{
-			"type":   "jira_issues_searched",
-			"issues": issues,
-		}
-		if sessionExists {
-			message["session"] = session // Include session for context
-		}
-		msgBytes, _ := json.Marshal(message)
-		hub.broadcast <- msgBytes
-	}()
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"issues": issues,
 	})
+}
+
+// searchJiraIssuesWithAPIToken searches JIRA using Basic Auth with API token from env vars
+func searchJiraIssuesWithAPIToken(query string) ([]Story, error) {
+	email := os.Getenv("JIRA_EMAIL")
+	domain := os.Getenv("JIRA_DOMAIN")
+	token := os.Getenv("API_TOKEN_JIRA")
+
+	log.Printf("Using API Token mode - Email: %s, Domain: %s", email, domain)
+
+	// Build JQL query
+	jql := query
+	if !strings.Contains(query, "=") && !strings.Contains(query, "~") && !strings.Contains(query, "ORDER BY") {
+		// Simple text search - convert to JQL
+		jql = fmt.Sprintf("text ~ \"%s\" OR summary ~ \"%s\" ORDER BY updated DESC", query, query)
+	}
+
+	log.Printf("JQL Query: %s", jql)
+
+	// Use direct HTTP request to the new JIRA API (v3)
+	jiraURL := fmt.Sprintf("https://%s/rest/api/3/search/jql", domain)
+
+	// Prepare search request body
+	searchData := map[string]interface{}{
+		"jql":        jql,
+		"maxResults": 20,
+		"fields":     []string{"key", "summary", "description", "issuetype", "status", "priority"},
+	}
+
+	searchJSON, err := json.Marshal(searchData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal search data: %v", err)
+	}
+
+	req, err := http.NewRequest("POST", jiraURL, strings.NewReader(string(searchJSON)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Set Basic Auth header
+	auth := email + ":" + token
+	encodedAuth := base64.StdEncoding.EncodeToString([]byte(auth))
+	req.Header.Set("Authorization", "Basic "+encodedAuth)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute search request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("JIRA API error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	// Parse response
+	var searchResult struct {
+		Issues []struct {
+			Key    string `json:"key"`
+			Fields struct {
+				Summary     string      `json:"summary"`
+				Description interface{} `json:"description"`
+				IssueType   struct {
+					Name string `json:"name"`
+				} `json:"issuetype"`
+				Status struct {
+					Name string `json:"name"`
+				} `json:"status"`
+				Priority struct {
+					Name string `json:"name"`
+				} `json:"priority"`
+			} `json:"fields"`
+		} `json:"issues"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&searchResult); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	log.Printf("Found %d issues", len(searchResult.Issues))
+
+	// Convert to Story objects
+	var stories []Story
+	for _, issue := range searchResult.Issues {
+		description := ""
+		if issue.Fields.Description != nil {
+			switch desc := issue.Fields.Description.(type) {
+			case string:
+				description = desc
+			case map[string]interface{}:
+				description = extractTextFromADF(desc)
+			}
+		}
+
+		story := Story{
+			ID:          uuid.New().String(),
+			Title:       issue.Key + ": " + issue.Fields.Summary,
+			Description: description,
+			JiraKey:     issue.Key,
+			Type:        issue.Fields.IssueType.Name,
+			Status:      issue.Fields.Status.Name,
+			Priority:    issue.Fields.Priority.Name,
+		}
+		stories = append(stories, story)
+	}
+
+	return stories, nil
 }
 
 // searchJiraIssues searches for JIRA issues using the Atlassian API with OAuth token
@@ -836,14 +963,14 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 	}
 	req.Header.Set("Authorization", "Bearer "+conn.APIToken)
 	req.Header.Set("Accept", "application/json")
-	
+
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get accessible resources: %v", err)
 	}
 	defer resp.Body.Close()
-	
+
 	// Read response body for debugging
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -852,38 +979,38 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 
 	log.Printf("Resources API response status: %d", resp.StatusCode)
 	log.Printf("Resources API response body: %s", string(respBody))
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to get accessible resources: %s - %s", resp.Status, string(respBody))
 	}
-	
+
 	var resources []struct {
 		ID   string `json:"id"`
 		Name string `json:"name"`
 		URL  string `json:"url"`
 	}
-	
+
 	if err := json.Unmarshal(respBody, &resources); err != nil {
 		return nil, fmt.Errorf("failed to decode resources: %v", err)
 	}
-	
+
 	// Log the accessible resources for debugging
 	log.Printf("Found %d accessible resources:", len(resources))
 	for i, res := range resources {
 		log.Printf("  [%d] ID: %s, Name: %s, URL: %s", i, res.ID, res.Name, res.URL)
 	}
-	
+
 	if len(resources) == 0 {
 		return nil, fmt.Errorf("no accessible JIRA resources found - user may not have access to any JIRA sites")
 	}
-	
+
 	// Use the first resource (most common case)
 	resource := resources[0]
 	log.Printf("Using resource - ID: %s, Name: %s, URL: %s", resource.ID, resource.Name, resource.URL)
-	
+
 	// Build JQL query - handle different input types
 	jql := query
-	
+
 	// Check if the query is a JIRA URL and extract relevant info
 	if strings.Contains(query, "atlassian.net") {
 		// Extract project key if possible from URL like https://fcms.atlassian.net/jira/software/projects/IMMO/boards/280?selectedIssue=IMMO-5295
@@ -909,17 +1036,17 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 		// Simple text search - convert to JQL
 		jql = fmt.Sprintf("text ~ \"%s\" OR summary ~ \"%s\" OR description ~ \"%s\"", query, query, query)
 	}
-	
+
 	log.Printf("Original query: %s", query)
 	log.Printf("Generated JQL: %s", jql)
-	
+
 	// Search for issues using JIRA REST API
 	// Try using Atlassian API gateway with cloud ID instead of direct instance URL
 	searchURL := fmt.Sprintf("https://api.atlassian.com/ex/jira/%s/rest/api/3/search", resource.ID)
-	
+
 	// Prepare search request
 	searchData := map[string]interface{}{
-		"jql":         jql,
+		"jql":        jql,
 		"maxResults": 20,
 		"fields": []string{
 			"key",
@@ -930,24 +1057,24 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 			"priority",
 		},
 	}
-	
+
 	searchJSON, err := json.Marshal(searchData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal search data: %v", err)
 	}
-	
+
 	searchReq, err := http.NewRequest("POST", searchURL, strings.NewReader(string(searchJSON)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create search request: %v", err)
 	}
-	
+
 	searchReq.Header.Set("Authorization", "Bearer "+conn.APIToken)
 	searchReq.Header.Set("Accept", "application/json")
 	searchReq.Header.Set("Content-Type", "application/json")
 	// Add cloud ID context for OAuth
 	searchReq.Header.Set("X-Atlassian-Token", "no-check")
 	searchReq.Header.Set("X-ExperimentalApi", "opt-in")
-	
+
 	// Log the complete request details
 	log.Printf("=== JIRA API REQUEST DETAILS ===")
 	log.Printf("Method: %s", searchReq.Method)
@@ -964,7 +1091,7 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 	}
 	log.Printf("Request Body: %s", string(searchJSON))
 	log.Printf("=================================")
-	
+
 	// Use client with timeout for search request
 	searchClient := &http.Client{Timeout: 30 * time.Second}
 	searchResp, err := searchClient.Do(searchReq)
@@ -972,7 +1099,7 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 		return nil, fmt.Errorf("failed to search issues: %v", err)
 	}
 	defer searchResp.Body.Close()
-	
+
 	if searchResp.StatusCode != http.StatusOK {
 		// Read the error response body
 		errorBody, _ := io.ReadAll(searchResp.Body)
@@ -981,7 +1108,7 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 		log.Printf("Error response: %s", string(errorBody))
 		return nil, fmt.Errorf("search request failed: %s - %s", searchResp.Status, string(errorBody))
 	}
-	
+
 	// Parse search results
 	var searchResults struct {
 		Issues []struct {
@@ -1002,11 +1129,11 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 		} `json:"issues"`
 		Total int `json:"total"`
 	}
-	
+
 	if err := json.NewDecoder(searchResp.Body).Decode(&searchResults); err != nil {
 		return nil, fmt.Errorf("failed to decode search results: %v", err)
 	}
-	
+
 	// Convert to Story objects
 	var stories []Story
 	for _, issue := range searchResults.Issues {
@@ -1026,8 +1153,8 @@ func searchJiraIssues(conn *JiraConnection, query string) ([]Story, error) {
 		} else {
 			log.Printf("Description field is nil for issue: %s", issue.Key)
 		}
-		
-story := Story{
+
+		story := Story{
 			ID:          uuid.New().String(),
 			Title:       issue.Key + ": " + issue.Fields.Summary,
 			Description: description,
@@ -1038,7 +1165,7 @@ story := Story{
 		}
 		stories = append(stories, story)
 	}
-	
+
 	return stories, nil
 }
 
@@ -1137,7 +1264,7 @@ func importJiraHandler(w http.ResponseWriter, r *http.Request) {
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("sessionId")
 	log.Printf("🔌 WebSocket connection attempt for session: %s from %s", sessionID, r.RemoteAddr)
-	
+
 	if sessionID == "" {
 		log.Printf("❌ WebSocket rejected: missing sessionId")
 		http.Error(w, "sessionId query param required", http.StatusBadRequest)
@@ -1227,7 +1354,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				playerID, playerOK := incoming["playerId"].(string)
 				vote, voteOK := incoming["vote"].(string)
 				playerName, playerNameOK := incoming["playerName"].(string)
-				log.Printf("🔍 Vote data extracted - storyID:%s(%v), playerID:%s(%v), vote:%s(%v), playerName:%s(%v)", 
+				log.Printf("🔍 Vote data extracted - storyID:%s(%v), playerID:%s(%v), vote:%s(%v), playerName:%s(%v)",
 					storyID, storyOK, playerID, playerOK, vote, voteOK, playerName, playerNameOK)
 
 				if !storyOK || !playerOK || !voteOK || !playerNameOK {
@@ -1462,7 +1589,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Allow access from the frontend (both localhost and network).
 		origin := r.Header.Get("Origin")
-		
+
 		// Dynamically allow local network origins
 		if origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -1470,7 +1597,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 			// Fallback to localhost for development
 			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
 		}
-		
+
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
