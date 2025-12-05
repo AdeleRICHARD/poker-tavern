@@ -235,6 +235,18 @@ export const useGameStore = defineStore("game", () => {
       if (existingPlayerIndex >= 0) {
         players.value[existingPlayerIndex] = { ...currentPlayer.value };
       }
+
+      // Broadcast character change to other players
+      if (currentSession.value) {
+        sendWebSocketMessage({
+          type: "character_changed",
+          playerId: currentPlayer.value.id,
+          playerName: currentPlayer.value.name,
+          character: character.id,
+          emoji: character.emoji,
+          sessionId: currentSession.value.id,
+        });
+      }
     } else {
       // Create new player
       currentPlayer.value = {
@@ -919,6 +931,9 @@ export const useGameStore = defineStore("game", () => {
       case "stories_imported":
         handleStoriesImported(message);
         break;
+      case "character_changed":
+        handleCharacterChanged(message);
+        break;
       default:
         console.log("Unknown WebSocket message type:", message.type);
     }
@@ -1186,6 +1201,48 @@ export const useGameStore = defineStore("game", () => {
     }
   }
 
+  // Trigger for character updates (similar to voteUpdateTrigger)
+  const characterUpdateTrigger = ref(0);
+
+  function handleCharacterChanged(message: Record<string, unknown>) {
+    const playerId = message.playerId as string;
+    const playerName = message.playerName as string;
+    const character = message.character as string;
+    const emoji = message.emoji as string;
+
+    if (playerId && character) {
+      console.log(`Player ${playerName} changed character to ${character}`);
+
+      // Don't update if it's our own character (we already updated locally)
+      if (currentPlayer.value?.id === playerId) {
+        return;
+      }
+
+      // Find and update the player in our list
+      const playerIndex = players.value.findIndex((p) => p.id === playerId);
+      if (playerIndex >= 0) {
+        players.value[playerIndex] = {
+          ...players.value[playerIndex],
+          character: character,
+          emoji: emoji,
+        };
+
+        // Trigger UI update in Phaser
+        characterUpdateTrigger.value++;
+
+        // Add system message
+        addChatMessage({
+          author: "System",
+          text: `${playerName} changed to ${character}`,
+          type: "system",
+        });
+
+        // Save updated state
+        savePersistedState();
+      }
+    }
+  }
+
   function sendWebSocketMessage(message: Record<string, unknown>) {
     console.log("📤 Attempting to send WebSocket message:", message);
     console.log("WebSocket connection state:", {
@@ -1231,6 +1288,7 @@ export const useGameStore = defineStore("game", () => {
     canNavigateNext,
     canNavigatePrev,
     currentStoryProgress,
+    characterUpdateTrigger,
 
     // Actions
     initializeStore,

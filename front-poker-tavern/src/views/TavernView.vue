@@ -454,6 +454,18 @@ watch(
     },
 );
 
+// Watch for character changes triggered by WebSocket messages
+watch(
+    () => gameStore.characterUpdateTrigger,
+    () => {
+        console.log("🎭 Character update triggered - updating Phaser sprites");
+        // Re-add all players to Phaser to update their sprites
+        gameStore.players.forEach((player) => {
+            gameManager.addPlayer(player.id, player);
+        });
+    },
+);
+
 // Methods
 function selectCharacter(characterId: string) {
     gameStore.selectCharacter(characterId);

@@ -1385,6 +1385,32 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				log.Printf("🗚️ Broadcasting vote_cast message: %s", string(broadcastBytes))
 				hub.broadcast <- broadcastBytes
 				log.Printf("🗳️ Broadcasted vote_cast for player %s on story %s to %d clients", playerName, storyID, len(hub.clients))
+			case "character_changed":
+				log.Printf("🎭 Received character_changed message: %+v", incoming)
+				playerID, playerOK := incoming["playerId"].(string)
+				playerName, playerNameOK := incoming["playerName"].(string)
+				character, characterOK := incoming["character"].(string)
+				emoji, emojiOK := incoming["emoji"].(string)
+
+				if !playerOK || !characterOK {
+					log.Printf("❌ Invalid character_changed message: missing fields")
+					continue
+				}
+
+				// Broadcast the character change to all clients
+				broadcastMsg := map[string]interface{}{
+					"type":       "character_changed",
+					"playerId":   playerID,
+					"playerName": playerName,
+					"character":  character,
+					"emoji":      emoji,
+				}
+				broadcastBytes, _ := json.Marshal(broadcastMsg)
+				log.Printf("🎭 Broadcasting character_changed: %s", string(broadcastBytes))
+				hub.broadcast <- broadcastBytes
+				log.Printf("🎭 Broadcasted character change for player %s to %s", playerName, character)
+				_ = playerNameOK // Avoid unused variable warning
+				_ = emojiOK
 			default:
 				log.Printf("Unknown message type: %v", incoming["type"])
 			}
