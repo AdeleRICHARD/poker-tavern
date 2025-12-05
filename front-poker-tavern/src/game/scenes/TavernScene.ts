@@ -47,38 +47,51 @@ export class TavernScene extends Phaser.Scene {
 
     // Table click events
     this.setupTableInteractions();
-
-    // Information text
-    this.add
-      .text(400, 50, "🏰 Planning Poker Tavern", {
-        fontSize: "24px",
-        color: "#FFD700",
-        fontFamily: "serif",
-      })
-      .setOrigin(0.5);
   }
 
   private createTableTexture() {
     const graphics = this.add.graphics();
 
-    // Round wooden table
-    graphics.fillStyle(0x8b4513); // Brown
+    // Table shadow
+    graphics.fillStyle(0x0a0705, 0.5);
+    graphics.fillCircle(155, 155, 145);
+
+    // Main table body - rich dark wood
+    graphics.fillStyle(0x5a3d2b);
     graphics.fillCircle(150, 150, 140);
 
-    // Golden border
-    graphics.lineStyle(6, 0xdaa520); // Gold
-    graphics.strokeCircle(150, 150, 140);
+    // Inner wood ring - lighter
+    graphics.fillStyle(0x6b4a35);
+    graphics.fillCircle(150, 150, 120);
 
-    // Wood texture (lines)
-    graphics.lineStyle(2, 0x654321);
-    for (let i = 0; i < 8; i++) {
-      const angle = (i * Math.PI * 2) / 8;
-      const x1 = 150 + Math.cos(angle) * 100;
-      const y1 = 150 + Math.sin(angle) * 100;
+    // Center - even lighter
+    graphics.fillStyle(0x7a5540);
+    graphics.fillCircle(150, 150, 80);
+
+    // Wood grain rings
+    graphics.lineStyle(1, 0x4a3020, 0.4);
+    graphics.strokeCircle(150, 150, 100);
+    graphics.strokeCircle(150, 150, 60);
+    graphics.strokeCircle(150, 150, 30);
+
+    // Radial wood grain lines
+    graphics.lineStyle(2, 0x3a2515, 0.3);
+    for (let i = 0; i < 12; i++) {
+      const angle = (i * Math.PI * 2) / 12;
+      const x1 = 150 + Math.cos(angle) * 40;
+      const y1 = 150 + Math.sin(angle) * 40;
       const x2 = 150 + Math.cos(angle) * 130;
       const y2 = 150 + Math.sin(angle) * 130;
       graphics.lineBetween(x1, y1, x2, y2);
     }
+
+    // Thick golden border with bevel effect
+    graphics.lineStyle(8, 0x8b6914);
+    graphics.strokeCircle(150, 150, 140);
+    graphics.lineStyle(4, 0xd4a756);
+    graphics.strokeCircle(150, 150, 142);
+    graphics.lineStyle(2, 0xffd700);
+    graphics.strokeCircle(150, 150, 144);
 
     graphics.generateTexture("round-table", 300, 300);
     graphics.destroy();
@@ -87,21 +100,41 @@ export class TavernScene extends Phaser.Scene {
   private createBackgroundTexture() {
     const graphics = this.add.graphics();
 
-    // Stone background
-    graphics.fillStyle(0x2c3e50);
+    // Dark warm background - tavern wood/stone
+    graphics.fillStyle(0x1a0f0a); // Dark brown base
     graphics.fillRect(0, 0, 800, 600);
 
-    // Stone pattern
-    graphics.lineStyle(2, 0x34495e);
-    for (let x = 0; x < 800; x += 100) {
-      for (let y = 0; y < 600; y += 100) {
-        graphics.strokeRect(x, y, 100, 100);
+    // Wooden floor planks
+    graphics.fillStyle(0x2d1f15);
+    for (let y = 0; y < 600; y += 40) {
+      graphics.fillRect(0, y, 800, 38);
+      graphics.lineStyle(2, 0x1a0f0a);
+      graphics.lineBetween(0, y + 38, 800, y + 38);
+    }
+
+    // Wood grain lines
+    graphics.lineStyle(1, 0x3d2a1a, 0.3);
+    for (let x = 0; x < 800; x += 80) {
+      for (let y = 0; y < 600; y += 40) {
+        graphics.lineBetween(x + 10, y + 5, x + 70, y + 5);
+        graphics.lineBetween(x + 15, y + 15, x + 60, y + 15);
+        graphics.lineBetween(x + 5, y + 25, x + 75, y + 25);
       }
     }
 
-    // Ambient lighting (simulated gradients)
-    graphics.fillStyle(0x3a4a5c);
+    // Warm ambient light from center (where torches would be)
+    const centerGradient = graphics.createGeometryMask();
+    graphics.fillStyle(0x3d2a1a, 0.4);
+    graphics.fillCircle(400, 300, 280);
+    graphics.fillStyle(0x4a3525, 0.3);
     graphics.fillCircle(400, 300, 200);
+    graphics.fillStyle(0x5a4530, 0.2);
+    graphics.fillCircle(400, 300, 120);
+
+    // Torch light spots on walls
+    graphics.fillStyle(0x8b4513, 0.15);
+    graphics.fillCircle(50, 300, 100); // Left torch
+    graphics.fillCircle(750, 300, 100); // Right torch
 
     graphics.generateTexture("tavern-bg", 800, 600);
     graphics.destroy();
@@ -210,22 +243,58 @@ export class TavernScene extends Phaser.Scene {
   }
 
   private addTavernDecorations() {
-    // Chandelier in center of table
-    const chandelier = this.add
-      .text(400, 300, "🕯️", {
-        fontSize: "24px",
+    // Candles on the table center
+    const candle1 = this.add.graphics();
+    candle1.fillStyle(0xfff8dc);
+    candle1.fillRect(395, 290, 4, 12);
+    candle1.fillStyle(0xff6600);
+    candle1.fillCircle(397, 288, 4);
+
+    const candle2 = this.add.graphics();
+    candle2.fillStyle(0xfff8dc);
+    candle2.fillRect(405, 295, 4, 10);
+    candle2.fillStyle(0xff6600);
+    candle2.fillCircle(407, 293, 3);
+
+    // Torch holders on walls (graphical)
+    this.createTorch(50, 280);
+    this.createTorch(750, 280);
+
+    // Ambient glow from torches
+    const leftGlow = this.add.graphics();
+    leftGlow.fillStyle(0xff6600, 0.08);
+    leftGlow.fillCircle(50, 300, 80);
+    
+    const rightGlow = this.add.graphics();
+    rightGlow.fillStyle(0xff6600, 0.08);
+    rightGlow.fillCircle(750, 300, 80);
+
+    // Title banner
+    this.add
+      .text(400, 35, "⚔️ PLANNING POKER TAVERN ⚔️", {
+        fontSize: "22px",
+        color: "#d4a756",
+        fontFamily: "serif",
+        fontStyle: "bold",
+        stroke: "#1a0f0a",
+        strokeThickness: 4,
       })
       .setOrigin(0.5);
+  }
 
-    // Some decorative elements
-    this.add.text(100, 100, "🍺", { fontSize: "32px" });
-    this.add.text(700, 500, "🗡️", { fontSize: "32px" });
-    this.add.text(50, 550, "📜", { fontSize: "32px" });
-    this.add.text(750, 80, "🏰", { fontSize: "32px" });
-
-    // Torches on walls
-    this.add.text(50, 300, "🔥", { fontSize: "28px" });
-    this.add.text(750, 300, "🔥", { fontSize: "28px" });
+  private createTorch(x: number, y: number) {
+    // Torch holder
+    const holder = this.add.graphics();
+    holder.fillStyle(0x3a2515);
+    holder.fillRect(x - 4, y, 8, 30);
+    holder.fillStyle(0x2a1810);
+    holder.fillRect(x - 6, y + 25, 12, 8);
+    
+    // Flame (animated separately in update)
+    const flame = this.add
+      .text(x, y - 5, "🔥", { fontSize: "24px" })
+      .setOrigin(0.5)
+      .setName(`torch-${x}`);
   }
 
   private setupTableInteractions() {
@@ -380,16 +449,20 @@ export class TavernScene extends Phaser.Scene {
 
     if (hasVoted && !player.voteCard) {
       console.log("Creating vote card for player:", playerId);
-      // Add hidden card
-      player.voteCard = this.add.sprite(
-        player.position.x,
-        player.position.y - 60,
-        "card-hidden",
-      );
+      
+      // Calculate position on table (between player and center)
+      const centerX = 400;
+      const centerY = 300;
+      const cardDistance = 0.45; // 45% of the way from player to center
+      const cardX = player.position.x + (centerX - player.position.x) * cardDistance;
+      const cardY = player.position.y + (centerY - player.position.y) * cardDistance;
+      
+      // Add hidden card on the table
+      player.voteCard = this.add.sprite(cardX, cardY, "card-hidden");
 
       // Ensure card is visible
-      player.voteCard.setDisplaySize(30, 40);
-      player.voteCard.setDepth(10); // Au-dessus des autres éléments
+      player.voteCard.setDisplaySize(35, 48);
+      player.voteCard.setDepth(10); // Above other elements
 
       console.log(
         "Vote card created:",
@@ -398,12 +471,15 @@ export class TavernScene extends Phaser.Scene {
         this.textures.exists("card-hidden"),
       );
 
-      // Card animation
+      // Card animation - slide in from player position
+      player.voteCard.setPosition(player.position.x, player.position.y);
       player.voteCard.setScale(0);
       this.tweens.add({
         targets: player.voteCard,
+        x: cardX,
+        y: cardY,
         scale: 1,
-        duration: 300,
+        duration: 400,
         ease: "Back.easeOut",
       });
     } else if (!hasVoted && player.voteCard) {
@@ -521,8 +597,9 @@ export class TavernScene extends Phaser.Scene {
 
   update() {
     // Subtle animations to bring the scene to life
+    const time = this.time.now;
 
-    // Make torches flicker
+    // Make torches flicker with more dynamic effect
     this.children.list
       .filter(
         (child) =>
@@ -530,9 +607,12 @@ export class TavernScene extends Phaser.Scene {
           (child as Phaser.GameObjects.Text).text === "🔥",
       )
       .forEach((torch, index) => {
-        const time = this.time.now + index * 1000;
-        const alpha = 0.7 + Math.sin(time * 0.005) * 0.3;
-        (torch as Phaser.GameObjects.Text).setAlpha(alpha);
+        const offset = index * 500;
+        const alpha = 0.75 + Math.sin((time + offset) * 0.008) * 0.25;
+        const scale = 1 + Math.sin((time + offset) * 0.01) * 0.1;
+        const textObj = torch as Phaser.GameObjects.Text;
+        textObj.setAlpha(alpha);
+        textObj.setScale(scale);
       });
   }
 }

@@ -31,116 +31,37 @@
                     </button>
                 </div>
 
-                <!-- Debug section - remove this later -->
-                <div
-                    class="debug-info"
-                    style="
-                        background: rgba(255, 0, 0, 0.1);
-                        padding: 1rem;
-                        margin: 1rem 0;
-                        border-radius: 8px;
-                    "
-                >
-                    <h4>🐛 Debug Info</h4>
-                    <p>
-                        <strong>Has Session:</strong>
-                        {{ !!gameStore.currentSession }}
-                    </p>
-                    <p v-if="gameStore.currentSession">
-                        <strong>Session ID:</strong>
-                        {{ gameStore.currentSession.id }}
-                    </p>
-                    <p v-if="gameStore.currentSession">
-                        <strong>Session Name:</strong>
-                        {{ gameStore.currentSession.name }}
-                    </p>
-                    <p>
-                        <strong>Is Connected:</strong>
-                        {{ gameStore.isConnected }}
-                    </p>
-                </div>
-
                 <div class="room-info" v-if="gameStore.currentSession">
-                    <h3>📋 Current session</h3>
-                    <p>
-                        <strong>Room:</strong>
-                        {{ gameStore.currentSession.name }}
-                    </p>
-                    <p>
-                        <strong>Required players:</strong>
-                        {{ gameStore.currentSession.requiredPlayers.length }}
-                    </p>
-
-                    <!-- Session sharing section -->
-                    <div class="session-sharing">
-                        <h4>🔗 Share Session</h4>
-                        <div class="session-id-display">
-                            <label>Session ID:</label>
-                            <div class="session-id-container">
-                                <input
-                                    ref="sessionIdInput"
-                                    :value="gameStore.currentSession.id"
-                                    readonly
-                                    class="session-id-input"
-                                    @click="selectSessionId"
-                                />
-                                <button
-                                    @click="copySessionId"
-                                    class="copy-btn"
-                                    :class="{ copied: showCopied }"
-                                    :title="
-                                        showCopied
-                                            ? 'Copied!'
-                                            : 'Copy Session ID'
-                                    "
-                                >
-                                    {{ showCopied ? "✅" : "📋" }}
-                                </button>
-                            </div>
-                        </div>
-                        <div class="share-instructions">
-                            <p>
-                                📤 <strong>Share this Session ID</strong> with
-                                your team members so they can join!
-                            </p>
-                            <p>
-                                💡 They can paste it in the "Session ID" field
-                                on the login page.
-                            </p>
-                        </div>
+                    <!-- Compact session header -->
+                    <div class="session-header">
+                        <span class="session-name">🏰 {{ gameStore.currentSession.name }}</span>
+                        <span class="player-count">👥 {{ gameStore.currentSession.requiredPlayers.length }}</span>
                     </div>
 
-                    <div class="voting-status">
-                        <h4>🗳️ Global Voting Status</h4>
-                        <div class="status-summary">
-                            <span class="votes-count">
-                                {{ getTotalVotesCount() }} /
-                                {{ getTotalRequiredVotes() }}
-                                total votes
-                            </span>
-                            <div class="progress-bar">
-                                <div
-                                    class="progress-fill"
-                                    :style="{
-                                        width: getGlobalVotingProgress() + '%',
-                                    }"
-                                ></div>
-                            </div>
-                        </div>
+                    <!-- Session ID copy (compact) -->
+                    <div class="session-id-row">
+                        <code class="session-id-code">{{ gameStore.currentSession.id.substring(0, 8) }}...</code>
+                        <button
+                            @click="copySessionId"
+                            class="copy-btn-small"
+                            :class="{ copied: showCopied }"
+                            :title="showCopied ? 'Copied!' : 'Copy ID'"
+                        >
+                            {{ showCopied ? "✅" : "📋" }}
+                        </button>
+                    </div>
 
-                        <div class="global-status">
+                    <!-- Minimal voting progress -->
+                    <div class="voting-progress">
+                        <div class="progress-bar-mini">
                             <div
-                                v-if="gameStore.allStoriesVotedByEveryone"
-                                class="all-complete-notice"
-                            >
-                                ✅ All stories voted by everyone!
-                            </div>
-                            <div v-else class="progress-notice">
-                                📋 {{ getCompletedStoriesCount() }} /
-                                {{ gameStore.currentSession?.stories.length }}
-                                stories complete
-                            </div>
+                                class="progress-fill"
+                                :style="{ width: getGlobalVotingProgress() + '%' }"
+                            ></div>
                         </div>
+                        <span class="progress-text">
+                            {{ getCompletedStoriesCount() }}/{{ gameStore.currentSession?.stories.length }} ✓
+                        </span>
                     </div>
                 </div>
 
@@ -887,21 +808,103 @@ function onIssueSelected(issue: any) {
 }
 
 .room-info {
-    margin-bottom: 1.5rem;
-}
-
-.room-info p {
-    margin: 0.25rem 0;
-    font-size: 0.9rem;
-}
-
-/* Session sharing styles */
-.session-sharing {
-    margin-top: 1.5rem;
-    padding: 1rem;
-    background: rgba(52, 73, 94, 0.3);
+    margin-bottom: 1rem;
+    background: linear-gradient(145deg, rgba(26, 15, 10, 0.8), rgba(42, 25, 15, 0.8));
+    border: 2px solid #8b6914;
     border-radius: 8px;
-    border: 2px solid #34495e;
+    padding: 0.75rem;
+}
+
+/* Compact session header */
+.session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.session-name {
+    color: #d4a756;
+    font-weight: bold;
+    font-size: 0.95rem;
+}
+
+.player-count {
+    color: #e8d5b3;
+    font-size: 0.85rem;
+}
+
+/* Compact session ID row */
+.session-id-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.session-id-code {
+    background: rgba(0, 0, 0, 0.3);
+    color: #95a5a6;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    flex: 1;
+}
+
+.copy-btn-small {
+    background: transparent;
+    border: 1px solid #8b6914;
+    color: #d4a756;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.8rem;
+}
+
+.copy-btn-small:hover {
+    background: rgba(139, 105, 20, 0.3);
+}
+
+.copy-btn-small.copied {
+    border-color: #27ae60;
+}
+
+/* Minimal voting progress */
+.voting-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.progress-bar-mini {
+    flex: 1;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-bar-mini .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #27ae60, #2ecc71);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    color: #e8d5b3;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+/* Session sharing styles - keeping for backwards compatibility but simplified */
+.session-sharing {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: rgba(52, 73, 94, 0.2);
+    border-radius: 8px;
+    border: 1px solid #34495e;
 }
 
 .session-sharing h4 {
