@@ -176,11 +176,17 @@ async function searchIssues() {
 }
 
 async function checkConnectionStatus() {
-    if (!gameStore.currentSession?.id) return;
-    
     try {
-        const connected = await jiraAuth.isAuthenticated(gameStore.currentSession.id);
+        // First try API token mode (no session needed)
+        let connected = await jiraAuth.isAuthenticated();
+        
+        // If not connected via API token, try OAuth mode with session
+        if (!connected && gameStore.currentSession?.id) {
+            connected = await jiraAuth.isAuthenticated(gameStore.currentSession.id);
+        }
+        
         isConnected.value = connected;
+        console.log('JIRA connection status:', connected);
         
         // Auto-load POKER tickets if connected
         if (connected && searchResults.value.length === 0) {
