@@ -621,7 +621,7 @@ export const useGameStore = defineStore("game", () => {
         currentStoryIndex: 0,
         stories: sessionData.stories || [],
         revealVotes: false,
-        persistentVotes: {},
+      persistentVotes: sessionData.persistentVotes || {},
         requiredPlayers: sessionData.players || [],
       };
 
@@ -651,6 +651,9 @@ export const useGameStore = defineStore("game", () => {
       
       // Update game phase based on available stories
       updateGamePhase();
+      
+      // Update players' voted status based on synced persistentVotes
+      updatePlayerVotedStatus();
       
       // Save the state to be able to restore it later
       savePersistedState();
@@ -698,7 +701,7 @@ export const useGameStore = defineStore("game", () => {
         currentStoryIndex: 0,
         stories: stories,
         revealVotes: false,
-        persistentVotes: {},
+      persistentVotes: sessionData.persistentVotes || {},
         requiredPlayers: [],
       };
       
@@ -964,6 +967,20 @@ export const useGameStore = defineStore("game", () => {
             currentSession.value.stories = sessionStories;
             console.log('Synced stories from WebSocket session:', sessionStories);
           }
+        }
+        
+        // Sync persistent votes from backend session
+        const sessionVotes = session.persistentVotes as Record<string, Record<string, string>>;
+        if (sessionVotes) {
+          // Merge with existing votes (backend votes take priority)
+          currentSession.value.persistentVotes = {
+            ...currentSession.value.persistentVotes,
+            ...sessionVotes
+          };
+          console.log('Synced persistentVotes from WebSocket session:', sessionVotes);
+          
+          // Update player voted status based on synced votes
+          updatePlayerVotedStatus();
         }
       }
       
