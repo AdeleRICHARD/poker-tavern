@@ -1,10 +1,10 @@
 <template>
     <div class="tavern-view">
         <div class="tavern-container">
-            <!-- Control panel on the left -->
-            <div class="control-panel wow-panel">
+            <!-- Left Sidebar: Session & Characters -->
+            <div class="left-sidebar wow-panel">
                 <div class="panel-header">
-                    <h3>🎭 Choose your character</h3>
+                    <h3>🎭 Role & Session</h3>
                     <button
                         class="logout-btn"
                         @click="handleLogout"
@@ -13,34 +13,26 @@
                         🚪
                     </button>
                 </div>
-                <div class="character-selection">
-                    <button
-                        v-for="character in gameStore.availableCharacters"
-                        :key="character.id"
-                        :class="[
-                            'character-btn',
-                            {
-                                active:
-                                    gameStore.currentPlayer?.character ===
-                                    character.id,
-                            },
-                        ]"
-                        @click="selectCharacter(character.id)"
-                    >
-                        {{ character.emoji }} {{ character.name }}
-                    </button>
-                </div>
 
                 <div class="room-info" v-if="gameStore.currentSession">
-                    <!-- Compact session header -->
                     <div class="session-header">
-                        <span class="session-name">🏰 {{ gameStore.currentSession.name }}</span>
-                        <span class="player-count">👥 {{ gameStore.currentSession.requiredPlayers.length }}</span>
+                        <span class="session-name"
+                            >🏰 {{ gameStore.currentSession.name }}</span
+                        >
+                        <span class="player-count"
+                            >👥
+                            {{
+                                gameStore.currentSession.requiredPlayers.length
+                            }}</span
+                        >
                     </div>
 
-                    <!-- Session ID copy (compact) -->
                     <div class="session-id-row">
-                        <code class="session-id-code">{{ gameStore.currentSession.id.substring(0, 8) }}...</code>
+                        <code class="session-id-code"
+                            >{{
+                                gameStore.currentSession.id.substring(0, 8)
+                            }}...</code
+                        >
                         <button
                             @click="copySessionId"
                             class="copy-btn-small"
@@ -50,76 +42,90 @@
                             {{ showCopied ? "✅" : "📋" }}
                         </button>
                     </div>
-
-                    <!-- Minimal voting progress -->
-                    <div class="voting-progress">
-                        <div class="progress-bar-mini">
-                            <div
-                                class="progress-fill"
-                                :style="{ width: getGlobalVotingProgress() + '%' }"
-                            ></div>
-                        </div>
-                        <span class="progress-text">
-                            {{ getCompletedStoriesCount() }}/{{ gameStore.currentSession?.stories.length }} ✓
-                        </span>
-                    </div>
                 </div>
 
-                <JiraImport @issue-selected="onIssueSelected" />
-                
-                
                 <div v-if="!gameStore.currentSession" class="no-session-notice">
                     <h3>🏠 No Session</h3>
                     <p>
                         You need to be connected to a session to start
                         estimating.
                     </p>
-                    <p>Please log in or create a session first.</p>
                 </div>
 
-
-
-                <!-- poker cards to make in a component -->
-                <div class="poker-cards">
-                    <h3>🃏 Your cards</h3>
-                    <div class="cards-grid">
-                        <button
-                            v-for="card in gameStore.pokerCards"
-                            :key="card.value"
-                            :class="[
-                                'poker-card',
-                                {
-                                    selected:
-                                        gameStore.selectedCard === card.value,
-                                },
-                            ]"
-                            @click="selectCard(card.value)"
-                        :disabled="gameStore.gamePhase !== GamePhase.VOTING"
-                            :title="card.description"
-                        >
-                            {{ card.label }}
-                        </button>
-                    </div>
-
+                <!-- Character Selection (Vertical List) -->
+                <div class="character-selection-list">
                     <button
-                        class="wow-button vote-btn"
-                        @click="submitVote"
-                        :disabled="
-                            !gameStore.selectedCard ||
-                            !gameStore.currentPlayer ||
-                            gameStore.currentPlayer?.hasVoted
-                        "
+                        v-for="character in gameStore.availableCharacters"
+                        :key="character.id"
+                        :class="[
+                            'character-btn-list',
+                            {
+                                active:
+                                    gameStore.currentPlayer?.character ===
+                                    character.id,
+                            },
+                        ]"
+                        @click="selectCharacter(character.id)"
+                        :title="character.name"
                     >
-                        {{
-                            !gameStore.currentPlayer
-                                ? "👤 Select character first"
-                                : gameStore.currentPlayer?.hasVoted
-                                  ? "✅ Vote submitted"
-                                  : "🗳️ Vote"
-                        }}
+                        <span class="char-emoji">{{ character.emoji }}</span>
+                        <span class="char-name">{{ character.name }}</span>
                     </button>
                 </div>
+            </div>
 
+            <!-- Center Column: Game + Chat -->
+            <div class="center-column">
+                <!-- Phaser game area -->
+                <div class="game-area">
+                    <div ref="phaserContainer" id="phaser-game"></div>
+
+                    <div class="game-status">
+                        <div
+                            class="status-indicator"
+                            :class="gameStore.gamePhase"
+                        >
+                            {{ getPhaseText(gameStore.gamePhase) }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat under the game (Horizontal) -->
+                <ChatPanel />
+            </div>
+
+            <!-- Right Sidebar: Jira & Voting -->
+            <div class="right-sidebar wow-panel">
+                <div class="panel-header">
+                    <h3>📋 Tasks & Voting</h3>
+                </div>
+
+                <div v-if="gameStore.currentSession" class="voting-progress">
+                    <div class="progress-bar-mini">
+                        <div
+                            class="progress-fill"
+                            :style="{
+                                width: getGlobalVotingProgress() + '%',
+                            }"
+                        ></div>
+                    </div>
+                    <span class="progress-text">
+                        {{ getCompletedStoriesCount() }}/{{
+                            gameStore.currentSession?.stories.length
+                        }}
+                        ✓
+                    </span>
+                </div>
+
+                <!-- JIRA Import (Takes available space) -->
+                <JiraImport @issue-selected="onIssueSelected" />
+
+                <!-- Poker Cards (Bottom) -->
+                <div class="cards-section">
+                    <PokerCards @submit="submitVote" />
+                </div>
+
+                <!-- Admin Controls -->
                 <div class="game-controls">
                     <button
                         v-if="
@@ -149,56 +155,6 @@
                         @click="showSummaryModal = true"
                     >
                         📊 View Summary
-                    </button>
-                </div>
-            </div>
-
-            <!-- Phaser game area in center -->
-            <div class="game-area">
-                <div ref="phaserContainer" id="phaser-game"></div>
-
-                <div class="game-status">
-                    <div class="status-indicator" :class="gameStore.gamePhase">
-                        {{ getPhaseText(gameStore.gamePhase) }}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Chat on the right to put in a component -->
-            <div class="chat-panel wow-panel">
-                <h3>💬 Discussion</h3>
-                <div class="chat-messages" ref="chatMessages">
-                    <div
-                        v-for="message in gameStore.chatMessages"
-                        :key="message.id"
-                        :class="['chat-message', message.type]"
-                    >
-                        <div class="message-header">
-                            <span class="message-author">{{
-                                message.author
-                            }}</span>
-                            <span class="message-time">{{
-                                formatTime(message.timestamp)
-                            }}</span>
-                        </div>
-                        <div class="message-text">{{ message.text }}</div>
-                    </div>
-                </div>
-
-                <div class="chat-input">
-                    <input
-                        v-model="newMessage"
-                        @keyup.enter="sendMessage"
-                        placeholder="Type your message..."
-                        class="chat-input-field"
-                        :disabled="!gameStore.currentPlayer"
-                    />
-                    <button
-                        @click="sendMessage"
-                        class="send-btn"
-                        :disabled="!newMessage.trim()"
-                    >
-                        📤
                     </button>
                 </div>
             </div>
@@ -315,18 +271,18 @@ import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useGameStore, GamePhase } from "@/stores/gameStore";
 import { GameManager } from "@/game/GameManager";
 import JiraImport from "@/components/JiraImport.vue";
+import PokerCards from "@/components/PokerCards.vue";
+import ChatPanel from "@/components/ChatPanel.vue";
 
 // Global store
 const gameStore = useGameStore();
 
 // Vue references
 const phaserContainer = ref<HTMLElement>();
-const chatMessages = ref<HTMLElement>();
 const sessionIdInput = ref<HTMLInputElement>();
 
 // Local state
 const gameManager = new GameManager();
-const newMessage = ref("");
 const showSummaryModal = ref(false);
 const showCopied = ref(false);
 const selectedIssueForVoting = ref<any>(null);
@@ -695,26 +651,7 @@ function getStoryVotesCount(storyId: string): number {
     return Object.keys(storyVotes).length;
 }
 
-function sendMessage() {
-    if (newMessage.value.trim()) {
-        gameStore.sendChatMessage(newMessage.value);
-        newMessage.value = "";
 
-        // Scroll to bottom
-        nextTick(() => {
-            if (chatMessages.value) {
-                chatMessages.value.scrollTop = chatMessages.value.scrollHeight;
-            }
-        });
-    }
-}
-
-function formatTime(date: Date): string {
-    return date.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-}
 
 function getPhaseText(phase: string): string {
     const phases = {
@@ -760,35 +697,131 @@ function onIssueSelected(issue: any) {
 
 .tavern-container {
     display: grid;
-    grid-template-columns: 300px 1fr 300px;
+    grid-template-columns: 240px 1fr 340px; /* Refined widths */
     gap: 1rem;
-    max-width: 1400px;
-    margin: 0 auto;
-    height: calc(100vh - 2rem);
+    width: 100%; /* Full width */
+    max-width: none; /* No max width */
+    margin: 0;
+    height: calc(100vh - 85px); /* Full height minus approx header */
+    overflow: hidden;
+    padding: 0.5rem; /* Tiny padding for edge spacing */
 }
 
-/* Control panel */
-.control-panel {
+/* Left Sidebar */
+.left-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    height: 100%;
     overflow-y: auto;
-    overflow-x: hidden; /* Prevent horizontal scrollbar */
-    max-height: 100%;
 }
 
+/* Center Column: Game + Chat */
+.center-column {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    height: 100%;
+    min-width: 0;
+}
+
+.game-area {
+    flex: 2;
+    min-height: 400px;
+    position: relative;
+    background: #000;
+    border: 3px solid #8b4513;
+    border-radius: 12px;
+    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+/* Right Sidebar */
+.right-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    height: 100%;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+/* Vertical Character Selection List */
+.character-selection-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow-y: auto;
+    flex: 1; /* Take remaining height in left sidebar */
+    padding-right: 0.5rem;
+}
+
+.character-btn-list {
+    background: linear-gradient(145deg, #34495e, #2c3e50);
+    border: 2px solid #7f8c8d;
+    color: #ecf0f1;
+    padding: 0.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-align: left;
+}
+
+.character-btn-list:hover {
+    border-color: #f39c12;
+    transform: translateX(2px);
+    background: linear-gradient(145deg, #3e5871, #34495e);
+}
+
+.character-btn-list.active {
+    background: linear-gradient(145deg, #e67e22, #d35400);
+    border-color: #ffd700;
+    color: #fff;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.char-emoji {
+    font-size: 1.5rem;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+}
+
+.char-name {
+    font-weight: bold;
+    font-size: 0.95rem;
+}
+
+/* Voting Progress tweak for right sidebar */
+.voting-progress {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.75rem;
+    border-radius: 8px;
+    border: 1px solid #8b6914;
+}
+
+/* Cards section tweak */
+.cards-section {
+    margin-top: auto; /* Push to bottom if space permits */
+}
+
+/* General Layout Tweaks */
 .panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(139, 69, 19, 0.5);
+    padding-bottom: 0.5rem;
 }
 
-.panel-header h3 {
-    color: #ffd700;
-    text-align: center;
-    font-size: 1.1rem;
-    margin: 0;
-}
-
+/* Previous styles... */
 .logout-btn {
+    /* ... same as before */
     background: rgba(231, 76, 60, 0.2);
     border: 2px solid #e74c3c;
     color: #e74c3c;
@@ -797,45 +830,11 @@ function onIssueSelected(issue: any) {
     cursor: pointer;
     transition: all 0.3s ease;
     font-size: 1rem;
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.logout-btn:hover {
-    background: rgba(231, 76, 60, 0.4);
-    transform: scale(1.1);
-}
-
-.character-selection {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-}
-
-.character-btn {
-    background: linear-gradient(145deg, #34495e, #2c3e50);
-    border: 2px solid #7f8c8d;
-    color: #ecf0f1;
-    padding: 0.5rem;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 0.9rem;
-}
-
-.character-btn:hover {
-    border-color: #f39c12;
-    transform: translateY(-2px);
-}
-
-.character-btn.active {
-    background: linear-gradient(145deg, #e67e22, #d35400);
-    border-color: #ffd700;
-    color: #fff;
 }
 
 .room-info {
@@ -1751,62 +1750,7 @@ function onIssueSelected(issue: any) {
     border-color: #27ae60;
 }
 
-/* Chat */
-.chat-panel {
-    display: flex;
-    flex-direction: column;
-    max-height: 100%;
-}
-
-.chat-messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0.5rem;
-    background: rgba(52, 73, 94, 0.3);
-    border-radius: 8px;
-    margin-bottom: 1rem;
-    max-height: 400px;
-}
-
-.chat-message {
-    margin-bottom: 0.75rem;
-    padding: 0.5rem;
-    border-radius: 8px;
-}
-
-.chat-message.message {
-    background: rgba(52, 152, 219, 0.2);
-    border-left: 3px solid #3498db;
-}
-
-.chat-message.system {
-    background: rgba(241, 196, 15, 0.2);
-    border-left: 3px solid #f1c40f;
-    font-style: italic;
-}
-
-.message-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.25rem;
-}
-
-.message-author {
-    font-weight: bold;
-    color: #3498db;
-    font-size: 0.9rem;
-}
-
-.message-time {
-    color: #95a5a6;
-    font-size: 0.8rem;
-}
-
-.message-text {
-    font-size: 0.9rem;
-    line-height: 1.4;
-}
-
+/* Chat input and send button (remaining) */
 .chat-input {
     display: flex;
     gap: 0.5rem;

@@ -2,7 +2,7 @@ import Phaser from "phaser";
 
 interface PlayerSprite {
   id: string;
-  sprite: Phaser.GameObjects.Sprite;
+  sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Container;
   nameText: Phaser.GameObjects.Text;
   voteCards: Phaser.GameObjects.Sprite[]; // Multiple cards for multiple stories
   statusIcon: Phaser.GameObjects.Sprite | null;
@@ -154,17 +154,35 @@ export class TavernScene extends Phaser.Scene {
     ];
 
     classes.forEach((playerClass) => {
+      // Create a larger texture for better quality
+      const size = 128;
+      const center = size / 2;
+      const radius = size / 2 - 4; // Leave room for shadow/glow
+
       const graphics = this.add.graphics();
 
-      // Character body (colored circle)
+      // 1. Drop shadow (simulated with semi-transparent black circle at offset)
+      graphics.fillStyle(0x000000, 0.5);
+      graphics.fillCircle(center + 4, center + 4, radius);
+
+      // 2. Outer Metallic Rim (Gold/Silver/Bronze look)
+      graphics.fillStyle(0xc0c0c0); // Silver base
+      graphics.fillCircle(center, center, radius);
+      
+      // Gradient effect for rim (simulated with line styles)
+      graphics.lineStyle(4, 0xffffff, 0.8); // Highlight top-left
+      graphics.strokeCircle(center, center, radius - 2);
+      
+      // 3. Inner Class Color Ring
       graphics.fillStyle(playerClass.color);
-      graphics.fillCircle(25, 25, 20);
+      graphics.fillCircle(center, center, radius - 8);
 
-      // Border
-      graphics.lineStyle(3, 0xffffff);
-      graphics.strokeCircle(25, 25, 20);
+      // 4. Dark Background for Symbol
+      graphics.fillStyle(0x222222);
+      graphics.fillCircle(center, center, radius - 14);
 
-      graphics.generateTexture(`player-${playerClass.name}`, 50, 50);
+      // Generate the base token texture
+      graphics.generateTexture(`player-base-${playerClass.name}`, size, size);
       graphics.destroy();
     });
   }
@@ -339,13 +357,34 @@ export class TavernScene extends Phaser.Scene {
 
     console.log("Adding player at position:", freePosition);
 
-    // Create player sprite
-    const playerSprite = this.add.sprite(
-      freePosition.x,
-      freePosition.y,
-      `player-${playerData.character}`,
-    );
-    playerSprite.setDisplaySize(60, 60);
+    // Create player container (Token + Symbol)
+    const playerSprite = this.add.container(freePosition.x, freePosition.y);
+    
+    // Base Token Sprite
+    const baseSprite = this.add.sprite(0, 0, `player-base-${playerData.character}`);
+    baseSprite.setDisplaySize(70, 70);
+    
+    // Class Symbol (Emoji)
+    const classes = [
+      { name: "mage", symbol: "🧙" },
+      { name: "paladin", symbol: "⚔️" },
+      { name: "rogue", symbol: "🗡️" },
+      { name: "priest", symbol: "✨" },
+      { name: "warrior", symbol: "🛡️" },
+      { name: "hunter", symbol: "🏹" },
+      { name: "warlock", symbol: "😈" },
+      { name: "druid", symbol: "🌿" },
+    ];
+    const playerClass = classes.find(c => c.name === playerData.character);
+    const symbol = playerClass ? playerClass.symbol : "?";
+
+    const symbolText = this.add.text(0, 0, symbol, { 
+      fontSize: "36px",
+      align: "center"
+    }).setOrigin(0.5);
+
+    // Add components to container
+    playerSprite.add([baseSprite, symbolText]);
 
     // Player name
     const nameText = this.add

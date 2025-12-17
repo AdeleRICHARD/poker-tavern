@@ -434,12 +434,12 @@ onMounted(() => {
     margin: 0;
     color: #e74c3c;
     font-size: 0.8rem;
-    text-align: center;
-    line-height: 1.3;
+    margin-bottom: 0.75rem;
 }
 
 .search-results {
-    max-height: 200px;
+    /* Removed fixed max-height to let it grow if needed, or set a larger one */
+    max-height: 400px; 
     overflow-y: auto;
     border: 1px solid #8b4513;
     border-radius: 4px;
@@ -448,11 +448,8 @@ onMounted(() => {
 }
 
 .results-list {
-    max-height: 200px;
+    /* Let it fill the container */
     overflow-y: auto;
-    border: 1px solid #8b4513;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.05);
 }
 
 .search-results h4,

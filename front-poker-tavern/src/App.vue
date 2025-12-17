@@ -131,8 +131,9 @@ body {
 .app-main {
     flex: 1;
     display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 2rem;
+    justify-content: center; /* keep center but items should use full width */
+    align-items: stretch; /* Stretch children */
+    padding: 0; /* Remove padding for full immersion */
+    overflow: hidden;
 }
 </style>
