@@ -72,6 +72,86 @@
                         <span class="char-name">{{ character.name }}</span>
                     </button>
                 </div>
+
+                <!-- Issues Overview (moved from right sidebar) -->
+                <div
+                    v-if="gameStore.currentSession?.stories.length > 0"
+                    class="issues-section"
+                >
+                    <h4>📋 Issues to Estimate</h4>
+                    <div class="issues-list-left">
+                        <div
+                            v-for="(story, index) in gameStore.currentSession
+                                .stories"
+                            :key="story.id"
+                            class="issue-item-left"
+                            :class="{
+                                active: index === gameStore.localStoryIndex,
+                            }"
+                            @click="gameStore.navigateToStory(index)"
+                        >
+                            <div class="issue-header-left">
+                                <span class="issue-number">{{
+                                    index + 1
+                                }}</span>
+                                <span class="issue-key-left">{{
+                                    story.jiraKey
+                                }}</span>
+                            </div>
+                            <div class="issue-title-left">
+                                {{ story.title }}
+                            </div>
+                            <div class="issue-status-left">
+                                <span
+                                    v-if="hasVotedOnStory(story.id)"
+                                    class="voted-badge-mini"
+                                    >✅</span
+                                >
+                                <span v-else class="pending-badge-mini"
+                                    >⭕</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Poker Cards (moved from right sidebar) -->
+                <div v-if="gameStore.currentSession" class="cards-section-left">
+                    <PokerCards @submit="submitVote" />
+                </div>
+
+                <!-- Admin Controls (moved from right sidebar) -->
+                <div v-if="gameStore.currentSession" class="game-controls-left">
+                    <button
+                        v-if="
+                            gameStore.canReveal &&
+                            !gameStore.isCurrentStoryRevealed
+                        "
+                        class="wow-button reveal-btn"
+                        @click="revealAllVotes"
+                    >
+                        🎭 Reveal All Votes
+                    </button>
+
+                    <button
+                        v-if="
+                            gameStore.gamePhase === GamePhase.VOTING &&
+                            !gameStore.allStoriesVotedByEveryone &&
+                            gameStore.currentSession
+                        "
+                        class="wow-button test-btn"
+                        @click="makeOthersVote"
+                    >
+                        🤖 Make others vote (test)
+                    </button>
+
+                    <button
+                        class="wow-button summary-btn"
+                        @click="showSummaryModal = true"
+                    >
+                        📊 View Summary
+                    </button>
+                </div>
             </div>
 
             <!-- Center Column: Game + Chat -->
@@ -94,69 +174,17 @@
                 <ChatPanel />
             </div>
 
-            <!-- Right Sidebar: Jira & Voting -->
+            <!-- Right Sidebar: JIRA Import Only -->
             <div class="right-sidebar wow-panel">
                 <div class="panel-header">
-                    <h3>📋 Tasks & Voting</h3>
+                    <h3>🔍 JIRA Import</h3>
                 </div>
 
-                <div v-if="gameStore.currentSession" class="voting-progress">
-                    <div class="progress-bar-mini">
-                        <div
-                            class="progress-fill"
-                            :style="{
-                                width: getGlobalVotingProgress() + '%',
-                            }"
-                        ></div>
-                    </div>
-                    <span class="progress-text">
-                        {{ getCompletedStoriesCount() }}/{{
-                            gameStore.currentSession?.stories.length
-                        }}
-                        ✓
-                    </span>
-                </div>
-
-                <!-- JIRA Import (Takes available space) -->
-                <JiraImport @issue-selected="onIssueSelected" />
-
-                <!-- Poker Cards (Bottom) -->
-                <div class="cards-section">
-                    <PokerCards @submit="submitVote" />
-                </div>
-
-                <!-- Admin Controls -->
-                <div class="game-controls">
-                    <button
-                        v-if="
-                            gameStore.gamePhase === GamePhase.VOTING &&
-                            !gameStore.allStoriesVotedByEveryone &&
-                            gameStore.currentSession
-                        "
-                        class="wow-button test-btn"
-                        @click="makeOthersVote"
-                    >
-                        🤖 Make others vote (test)
-                    </button>
-
-                    <button
-                        v-if="
-                            gameStore.canReveal &&
-                            !gameStore.isCurrentStoryRevealed
-                        "
-                        class="wow-button reveal-btn"
-                        @click="revealAllVotes"
-                    >
-                        🎭 Reveal All Votes
-                    </button>
-
-                    <button
-                        class="wow-button summary-btn"
-                        @click="showSummaryModal = true"
-                    >
-                        📊 View Summary
-                    </button>
-                </div>
+                <!-- JIRA Import -->
+                <JiraImport
+                    @issue-selected="onIssueSelected"
+                    :show-issues-overview="false"
+                />
             </div>
         </div>
 
@@ -298,19 +326,35 @@ onMounted(() => {
         // Sync any existing players after delay (including restored ones)
         setTimeout(() => {
             if (gameStore.players.length > 0) {
-                console.log("Syncing initial players to Phaser:", gameStore.players.length);
-                const persistentVotes = gameStore.currentSession?.persistentVotes || {};
-                gameManager.syncInitialPlayers(gameStore.players, persistentVotes);
+                console.log(
+                    "Syncing initial players to Phaser:",
+                    gameStore.players.length,
+                );
+                const persistentVotes =
+                    gameStore.currentSession?.persistentVotes || {};
+                gameManager.syncInitialPlayers(
+                    gameStore.players,
+                    persistentVotes,
+                );
             }
-            
+
             // If we have a restored current player, make sure it's added to Phaser
             if (gameStore.currentPlayer && gameStore.currentSession) {
-                console.log("Adding restored current player to Phaser:", gameStore.currentPlayer.id);
-                gameManager.addPlayer(gameStore.currentPlayer.id, gameStore.currentPlayer);
-                
+                console.log(
+                    "Adding restored current player to Phaser:",
+                    gameStore.currentPlayer.id,
+                );
+                gameManager.addPlayer(
+                    gameStore.currentPlayer.id,
+                    gameStore.currentPlayer,
+                );
+
                 // Update vote status if player has voted
                 if (gameStore.currentPlayer.hasVoted) {
-                    gameManager.updatePlayerVote(gameStore.currentPlayer.id, true);
+                    gameManager.updatePlayerVote(
+                        gameStore.currentPlayer.id,
+                        true,
+                    );
                 }
             }
         }, 500);
@@ -336,22 +380,24 @@ watch(
     () => gameStore.players,
     (newPlayers, oldPlayers) => {
         console.log("Players updated:", newPlayers.length, "players");
-        
+
         // Sync new players to Phaser scene
         if (newPlayers.length > 0) {
             // Clear existing players in Phaser and re-add them
             if (oldPlayers) {
-                oldPlayers.forEach(player => {
-                    if (!newPlayers.find(p => p.id === player.id)) {
+                oldPlayers.forEach((player) => {
+                    if (!newPlayers.find((p) => p.id === player.id)) {
                         console.log("Removing player from Phaser:", player.id);
                         gameManager.removePlayer(player.id);
                     }
                 });
             }
-            
+
             // Add new players to Phaser
-            newPlayers.forEach(player => {
-                const wasAlreadyThere = oldPlayers?.find(p => p.id === player.id);
+            newPlayers.forEach((player) => {
+                const wasAlreadyThere = oldPlayers?.find(
+                    (p) => p.id === player.id,
+                );
                 if (!wasAlreadyThere) {
                     console.log("Adding new player to Phaser:", player.id);
                     gameManager.addPlayer(player.id, player);
@@ -370,7 +416,9 @@ watch(
             setTimeout(() => {
                 if (gameStore.currentSession) {
                     // Pass the full persistentVotes structure (storyId -> playerId -> vote)
-                    gameManager.revealAllVotes(gameStore.currentSession.persistentVotes);
+                    gameManager.revealAllVotes(
+                        gameStore.currentSession.persistentVotes,
+                    );
                 }
             }, 500);
         } else if (newPhase === GamePhase.VOTING) {
@@ -383,19 +431,25 @@ watch(
 watch(
     () => gameStore.voteUpdateTrigger,
     () => {
-        console.log("🎯 Vote update triggered in TavernView - updating Phaser UI");
+        console.log(
+            "🎯 Vote update triggered in TavernView - updating Phaser UI",
+        );
         // Update all players' vote cards after a vote is cast via WebSocket
         gameStore.players.forEach((player) => {
             // Calculate vote count for this player
             let voteCount = 0;
             if (gameStore.currentSession) {
-                for (const storyVotes of Object.values(gameStore.currentSession.persistentVotes)) {
+                for (const storyVotes of Object.values(
+                    gameStore.currentSession.persistentVotes,
+                )) {
                     if (storyVotes && storyVotes[player.id]) {
                         voteCount++;
                     }
                 }
             }
-            console.log(`Updating player ${player.id} vote status: hasVoted=${player.hasVoted}, voteCount=${voteCount}`);
+            console.log(
+                `Updating player ${player.id} vote status: hasVoted=${player.hasVoted}, voteCount=${voteCount}`,
+            );
             gameManager.updatePlayerVote(player.id, player.hasVoted, voteCount);
         });
     },
@@ -437,7 +491,9 @@ function selectCard(cardValue: string) {
 function getPlayerVoteCount(playerId: string): number {
     if (!gameStore.currentSession) return 0;
     let count = 0;
-    for (const storyVotes of Object.values(gameStore.currentSession.persistentVotes)) {
+    for (const storyVotes of Object.values(
+        gameStore.currentSession.persistentVotes,
+    )) {
         if (storyVotes && storyVotes[playerId]) {
             count++;
         }
@@ -454,9 +510,14 @@ function submitVote() {
         console.log(
             "Updating player vote in Phaser:",
             gameStore.currentPlayer.id,
-            "voteCount:", voteCount
+            "voteCount:",
+            voteCount,
         );
-        gameManager.updatePlayerVote(gameStore.currentPlayer.id, true, voteCount);
+        gameManager.updatePlayerVote(
+            gameStore.currentPlayer.id,
+            true,
+            voteCount,
+        );
 
         // Update other players' vote cards (skip current player to avoid double call)
         gameStore.players.forEach((player) => {
@@ -618,12 +679,15 @@ function selectSessionId() {
 
 function copySessionId() {
     if (gameStore.currentSession?.id) {
-        navigator.clipboard.writeText(gameStore.currentSession.id).then(() => {
-            showCopied.value = true;
-            setTimeout(() => (showCopied.value = false), 2000);
-        }).catch(err => {
-            console.error("Failed to copy:", err);
-        });
+        navigator.clipboard
+            .writeText(gameStore.currentSession.id)
+            .then(() => {
+                showCopied.value = true;
+                setTimeout(() => (showCopied.value = false), 2000);
+            })
+            .catch((err) => {
+                console.error("Failed to copy:", err);
+            });
     }
 }
 
@@ -651,8 +715,6 @@ function getStoryVotesCount(storyId: string): number {
     return Object.keys(storyVotes).length;
 }
 
-
-
 function getPhaseText(phase: string): string {
     const phases = {
         waiting: "⏳ Waiting",
@@ -666,19 +728,19 @@ function getPhaseText(phase: string): string {
 // Issue selection handler
 function onIssueSelected(issue: any) {
     selectedIssueForVoting.value = issue;
-    console.log('Issue selected for voting:', issue.title);
-    
+    console.log("Issue selected for voting:", issue.title);
+
     // Find the index of this story in the session and navigate to it
     if (gameStore.currentSession?.stories) {
         const storyIndex = gameStore.currentSession.stories.findIndex(
-            (s) => s.id === issue.id
+            (s) => s.id === issue.id,
         );
         if (storyIndex !== -1) {
             gameStore.navigateToStory(storyIndex);
-            console.log('Navigated to story index:', storyIndex);
+            console.log("Navigated to story index:", storyIndex);
         }
     }
-    
+
     // Add a chat message about the selection
     gameStore.addChatMessage({
         author: "System",
@@ -789,7 +851,7 @@ function onIssueSelected(issue: any) {
 
 .char-emoji {
     font-size: 1.5rem;
-    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3));
 }
 
 .char-name {
@@ -806,9 +868,6 @@ function onIssueSelected(issue: any) {
 }
 
 /* Cards section tweak */
-.cards-section {
-    margin-top: auto; /* Push to bottom if space permits */
-}
 
 /* General Layout Tweaks */
 .panel-header {
@@ -840,7 +899,11 @@ function onIssueSelected(issue: any) {
 
 .room-info {
     margin-bottom: 1rem;
-    background: linear-gradient(145deg, rgba(26, 15, 10, 0.8), rgba(42, 25, 15, 0.8));
+    background: linear-gradient(
+        145deg,
+        rgba(26, 15, 10, 0.8),
+        rgba(42, 25, 15, 0.8)
+    );
     border: 2px solid #8b6914;
     border-radius: 8px;
     padding: 0.75rem;
@@ -1797,9 +1860,140 @@ function onIssueSelected(issue: any) {
 }
 
 /* Responsive */
+/* Issues section in left sidebar */
+.issues-section {
+    margin-top: 1rem;
+    background: rgba(44, 62, 80, 0.8);
+    border: 2px solid #8b4513;
+    border-radius: 8px;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    max-height: 300px;
+}
+
+.issues-section h4 {
+    color: #ffd700;
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+    padding-bottom: 0.5rem;
+}
+
+.issues-list-left {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.issue-item-left {
+    background: rgba(52, 73, 94, 0.6);
+    border: 2px solid #7f8c8d;
+    border-radius: 6px;
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.issue-item-left:hover {
+    background: rgba(52, 73, 94, 0.8);
+    border-color: #95a5a6;
+}
+
+.issue-item-left.active {
+    background: rgba(52, 152, 219, 0.3);
+    border-color: #3498db;
+}
+
+.issue-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.issue-number {
+    background: #8b6914;
+    color: #ffd700;
+    font-weight: bold;
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    min-width: 1.5rem;
+    text-align: center;
+}
+
+.issue-key-left {
+    color: #3498db;
+    font-weight: bold;
+    font-size: 0.75rem;
+}
+
+.issue-title-left {
+    color: #ecf0f1;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    margin-bottom: 0.25rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.issue-status-left {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+}
+
+.voted-badge-mini {
+    font-size: 0.9rem;
+}
+
+.pending-badge-mini {
+    font-size: 0.9rem;
+    opacity: 0.5;
+}
+
+/* Cards section in left sidebar */
+.cards-section-left {
+    margin-top: 1rem;
+}
+
+/* Scrollbar for issues list */
+.issues-list-left::-webkit-scrollbar {
+    width: 6px;
+}
+
+.issues-list-left::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+}
+
+.issues-list-left::-webkit-scrollbar-thumb {
+    background: #8b6914;
+    border-radius: 3px;
+}
+
+.issues-list-left::-webkit-scrollbar-thumb:hover {
+    background: #daa520;
+}
+
+/* Admin controls in left sidebar */
+.game-controls-left {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
 @media (max-width: 1200px) {
     .tavern-container {
-        grid-template-columns: 250px 1fr 250px;
+        grid-template-columns: 200px 1fr 200px;
     }
 }
 

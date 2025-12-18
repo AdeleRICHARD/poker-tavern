@@ -67,7 +67,10 @@
         </div>
 
         <!-- Issues Overview Section (Always visible if there are imported stories, independent of JIRA connection) -->
-        <div v-if="importedIssues.length > 0" class="issues-overview">
+        <div
+            v-if="props.showIssuesOverview && importedIssues.length > 0"
+            class="issues-overview"
+        >
             <h4>📋 Issues Overview</h4>
             <div class="issues-list">
                 <div
@@ -126,6 +129,15 @@ import { useGameStore } from "@/stores/gameStore";
 import SimpleJiraAuth from "@/auth/SimpleJiraAuth";
 import JiraIssueModal from "./JiraIssueModal.vue";
 import { getApiUrl } from "@/config/api";
+
+const props = withDefaults(
+    defineProps<{
+        showIssuesOverview?: boolean;
+    }>(),
+    {
+        showIssuesOverview: true,
+    },
+);
 
 const gameStore = useGameStore();
 const isConnected = ref(false);
@@ -359,9 +371,6 @@ onMounted(() => {
     border-radius: 8px;
     padding: 0.75rem;
     margin-bottom: 1rem;
-    min-height: 0; /* Allow shrinking */
-    overflow: hidden; /* Prevent any overflow from this component */
-    min-width: 0; /* Allow component to shrink */
 }
 
 .jira-import h3 {
@@ -524,8 +533,6 @@ onMounted(() => {
     border: 1px solid #8b4513;
     border-radius: 6px;
     padding: 0.75rem;
-    overflow: hidden; /* Prevent any overflow */
-    min-width: 0; /* Allow container to shrink */
 }
 
 .issues-overview h4 {
