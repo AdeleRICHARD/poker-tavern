@@ -161,10 +161,10 @@ const importedIssues = computed(() => {
     // Show imported stories from the session (from localStorage)
     gameStore.currentSession?.stories?.forEach((story) => {
         // Check if the current player has voted on this story
+        const playerId = gameStore.currentPlayer?.id;
         const hasVoted =
-            gameStore.currentSession?.persistentVotes?.[story.id]?.[
-                gameStore.currentPlayer?.id
-            ] !== undefined;
+            playerId !== undefined &&
+            gameStore.currentSession?.persistentVotes?.[story.id]?.[playerId] !== undefined;
 
         issues.push({
             ...story,

@@ -22,7 +22,7 @@
                         <span class="player-count"
                             >👥
                             {{
-                                gameStore.currentSession.requiredPlayers.length
+                                gameStore.currentSession.requiredPlayers?.length || 0
                             }}</span
                         >
                     </div>
@@ -75,14 +75,14 @@
 
                 <!-- Issues Overview (moved from right sidebar) -->
                 <div
-                    v-if="gameStore.currentSession?.stories.length > 0"
+                    v-if="gameStore.currentSession?.stories && gameStore.currentSession.stories.length > 0"
                     class="issues-section"
                 >
                     <h4>📋 Issues to Estimate</h4>
                     <div class="issues-list-left">
                         <div
                             v-for="(story, index) in gameStore.currentSession
-                                .stories"
+                                ?.stories"
                             :key="story.id"
                             class="issue-item-left"
                             :class="{
