@@ -38,6 +38,7 @@ tsconfig.tsbuildinfo
 *.njsproj
 *.sln
 *.sw?
+WARP.md
 
 # OS generated files
 Thumbs.db

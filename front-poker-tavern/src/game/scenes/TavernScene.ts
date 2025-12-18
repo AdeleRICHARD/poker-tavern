@@ -75,7 +75,7 @@ export class TavernScene extends Phaser.Scene {
     // Grain lines (Horizontal for perspective illusion)
     graphics.lineStyle(2, 0x1a0f0a, 0.2);
     for (let y = 40; y < height - 40; y += 20) {
-        graphics.lineBetween(40, y, width - 40, y);
+      graphics.lineBetween(40, y, width - 40, y);
     }
 
     // Thick golden border with bevel effect
@@ -161,11 +161,11 @@ export class TavernScene extends Phaser.Scene {
       // 2. Outer Metallic Rim (Gold/Silver/Bronze look)
       graphics.fillStyle(0xc0c0c0); // Silver base
       graphics.fillCircle(center, center, radius);
-      
+
       // Gradient effect for rim (simulated with line styles)
       graphics.lineStyle(4, 0xffffff, 0.8); // Highlight top-left
       graphics.strokeCircle(center, center, radius - 2);
-      
+
       // 3. Inner Class Color Ring
       graphics.fillStyle(playerClass.color);
       graphics.fillCircle(center, center, radius - 8);
@@ -235,25 +235,25 @@ export class TavernScene extends Phaser.Scene {
     const centerY = 380; // Match table center
     const radiusX = 300; // Match table width
     const radiusY = 150; // Match table height (ellipse)
-    
+
     // Position 5 seats in an arc from left to right on the far side
     // Angles: PI (Left) to 2*PI (Right) -> Top half in standard math, but screen Y is down
     // Actually we want them "behind" the table, so Y < centerY.
     // Angles: 180 deg to 360 deg.
-    
+
     const totalSeats = 5;
     const startAngle = Math.PI + 0.2; // Slightly above horizon
     const endAngle = 2 * Math.PI - 0.2;
-    
+
     for (let i = 0; i < totalSeats; i++) {
-        // Distribute inclusive of start/end
-        const t = i / (totalSeats - 1); 
-        const angle = startAngle + t * (endAngle - startAngle);
-        
-        const x = centerX + Math.cos(angle) * (radiusX + 40); // Slightly outside table
-        const y = centerY + Math.sin(angle) * (radiusY + 40);
-        
-        this.tablePositions.push({ x, y });
+      // Distribute inclusive of start/end
+      const t = i / (totalSeats - 1);
+      const angle = startAngle + t * (endAngle - startAngle);
+
+      const x = centerX + Math.cos(angle) * (radiusX + 40); // Slightly outside table
+      const y = centerY + Math.sin(angle) * (radiusY + 40);
+
+      this.tablePositions.push({ x, y });
     }
   }
 
@@ -279,7 +279,7 @@ export class TavernScene extends Phaser.Scene {
     const leftGlow = this.add.graphics();
     leftGlow.fillStyle(0xff6600, 0.08);
     leftGlow.fillCircle(50, 300, 80);
-    
+
     const rightGlow = this.add.graphics();
     rightGlow.fillStyle(0xff6600, 0.08);
     rightGlow.fillCircle(750, 300, 80);
@@ -304,7 +304,7 @@ export class TavernScene extends Phaser.Scene {
     holder.fillRect(x - 4, y, 8, 30);
     holder.fillStyle(0x2a1810);
     holder.fillRect(x - 6, y + 25, 12, 8);
-    
+
     // Flame (animated separately in update)
     const flame = this.add
       .text(x, y - 5, "🔥", { fontSize: "24px" })
@@ -336,10 +336,13 @@ export class TavernScene extends Phaser.Scene {
 
     // Don't render sprite for local player (First person view)
     if (this.localPlayerId && playerId === this.localPlayerId) {
-        console.log("Skipping sprite for local player (First Person View):", playerId);
-        return;
+      console.log(
+        "Skipping sprite for local player (First Person View):",
+        playerId,
+      );
+      return;
     }
-    
+
     // ... existing logic
 
     let existingVoteCards: Phaser.GameObjects.Sprite[] = [];
@@ -381,11 +384,15 @@ export class TavernScene extends Phaser.Scene {
 
     // Create player container (Token + Symbol)
     const playerSprite = this.add.container(freePosition.x, freePosition.y);
-    
+
     // Base Token Sprite
-    const baseSprite = this.add.sprite(0, 0, `player-base-${playerData.character}`);
+    const baseSprite = this.add.sprite(
+      0,
+      0,
+      `player-base-${playerData.character}`,
+    );
     baseSprite.setDisplaySize(70, 70);
-    
+
     // Class Symbol (Emoji)
     const classes = [
       { name: "mage", symbol: "🧙" },
@@ -397,13 +404,15 @@ export class TavernScene extends Phaser.Scene {
       { name: "warlock", symbol: "😈" },
       { name: "druid", symbol: "🌿" },
     ];
-    const playerClass = classes.find(c => c.name === playerData.character);
+    const playerClass = classes.find((c) => c.name === playerData.character);
     const symbol = playerClass ? playerClass.symbol : "?";
 
-    const symbolText = this.add.text(0, 0, symbol, { 
-      fontSize: "36px",
-      align: "center"
-    }).setOrigin(0.5);
+    const symbolText = this.add
+      .text(0, 0, symbol, {
+        fontSize: "36px",
+        align: "center",
+      })
+      .setOrigin(0.5);
 
     // Add components to container
     playerSprite.add([baseSprite, symbolText]);
@@ -437,12 +446,24 @@ export class TavernScene extends Phaser.Scene {
     // If we had existing cards, reposition them
     if (existingVoteCards.length > 0) {
       existingVoteCards.forEach((card, index) => {
+        // Place cards directly in front of player (towards table center)
+        const offsetDistance = 60; // Fixed distance from player
+        const stackOffsetX = index * 8; // Horizontal stack offset
+        const stackOffsetY = -index * 3; // Vertical stack offset
+
+        // Calculate direction vector from player to center
         const centerX = 400;
         const centerY = 300;
-        const cardDistance = 0.55;
-        const offset = index * 12; // Stack offset
-        const cardX = freePosition.x + (centerX - freePosition.x) * cardDistance + offset;
-        const cardY = freePosition.y + (centerY - freePosition.y) * cardDistance - (index * 5);
+        const dx = centerX - freePosition.x;
+        const dy = centerY - freePosition.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Normalize and apply fixed offset
+        const cardX =
+          freePosition.x + (dx / distance) * offsetDistance + stackOffsetX;
+        const cardY =
+          freePosition.y + (dy / distance) * offsetDistance + stackOffsetY;
+
         card.setPosition(cardX, cardY);
       });
       console.log("Repositioned existing vote cards for player:", playerId);
@@ -485,7 +506,7 @@ export class TavernScene extends Phaser.Scene {
         player.sprite.destroy();
         player.nameText.destroy();
         player.statusIcon?.destroy();
-        player.voteCards.forEach(card => card.destroy());
+        player.voteCards.forEach((card) => card.destroy());
       },
     });
 
@@ -493,7 +514,13 @@ export class TavernScene extends Phaser.Scene {
   }
 
   updatePlayerVote(playerId: string, hasVoted: boolean, voteCount: number = 1) {
-    console.log("TavernScene.updatePlayerVote called:", playerId, hasVoted, "voteCount:", voteCount);
+    console.log(
+      "TavernScene.updatePlayerVote called:",
+      playerId,
+      hasVoted,
+      "voteCount:",
+      voteCount,
+    );
     const player = this.players.get(playerId);
     if (!player) {
       console.warn("Player not found for vote update:", playerId);
@@ -509,28 +536,33 @@ export class TavernScene extends Phaser.Scene {
     if (hasVoted && player.voteCards.length < voteCount) {
       const cardsToAdd = voteCount - player.voteCards.length;
       console.log("Adding", cardsToAdd, "vote card(s) for player:", playerId);
-      
+
       for (let i = 0; i < cardsToAdd; i++) {
         const cardIndex = player.voteCards.length;
+
+        // Place cards directly in front of player (towards table center)
+        const offsetDistance = 60; // Fixed distance from player
+        const stackOffsetX = cardIndex * 8; // Horizontal stack offset
+        const stackOffsetY = -cardIndex * 3; // Vertical stack offset
+
+        // Calculate direction vector from player to center
         const centerX = 400;
         const centerY = 300;
-        const cardDistance = 0.55;
-        
-        // Calculate base position towards center
-        const baseCardX = player.position.x + (centerX - player.position.x) * cardDistance;
-        const baseCardY = player.position.y + (centerY - player.position.y) * cardDistance;
-        
-        // Stack cards with slight offset
-        const offsetX = cardIndex * 10;
-        const offsetY = -cardIndex * 4;
-        const cardX = baseCardX + offsetX;
-        const cardY = baseCardY + offsetY;
-        
+        const dx = centerX - player.position.x;
+        const dy = centerY - player.position.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Normalize and apply fixed offset
+        const cardX =
+          player.position.x + (dx / distance) * offsetDistance + stackOffsetX;
+        const cardY =
+          player.position.y + (dy / distance) * offsetDistance + stackOffsetY;
+
         // Create new card
         const newCard = this.add.sprite(cardX, cardY, "card-hidden");
         newCard.setDisplaySize(40, 55);
         newCard.setDepth(10 + cardIndex);
-        
+
         // Animation - slide from player to table
         newCard.setPosition(player.position.x, player.position.y);
         newCard.setScale(0);
@@ -542,20 +574,22 @@ export class TavernScene extends Phaser.Scene {
           duration: 400,
           ease: "Back.easeOut",
         });
-        
+
         player.voteCards.push(newCard);
       }
       console.log("Vote cards updated, total cards:", player.voteCards.length);
     }
   }
 
-  revealAllVotes(persistentVotes: { [storyId: string]: { [playerId: string]: string } }) {
+  revealAllVotes(persistentVotes: {
+    [storyId: string]: { [playerId: string]: string };
+  }) {
     console.log("TavernScene.revealAllVotes called:", persistentVotes);
     this.isVotesRevealed = true;
 
     // Extract all vote values per player (list of votes for each story they voted on)
     const playerVotesMap = new Map<string, string[]>();
-    Object.values(persistentVotes).forEach(storyVotes => {
+    Object.values(persistentVotes).forEach((storyVotes) => {
       Object.entries(storyVotes).forEach(([playerId, vote]) => {
         if (!playerVotesMap.has(playerId)) {
           playerVotesMap.set(playerId, []);
@@ -584,11 +618,11 @@ export class TavernScene extends Phaser.Scene {
 
         // Convert players map to array and reveal each
         const playersArray = Array.from(this.players.entries());
-        
+
         playersArray.forEach(([playerId, player], pIndex) => {
           // Get all votes for this player (one per story)
           const playerVotes = playerVotesMap.get(playerId) || [];
-          
+
           // Create player name header
           const nameY = yPosition + pIndex * playerSpacing;
           const playerHeader = this.add
@@ -617,10 +651,10 @@ export class TavernScene extends Phaser.Scene {
           player.voteCards.forEach((card, cardIndex) => {
             const cardX = 250 + cardIndex * cardSpacing;
             const cardY = nameY;
-            
+
             // Get the vote value for this specific card (by index)
             const voteValue = playerVotes[cardIndex] || "?";
-            
+
             // Move card to reveal position with animation
             this.tweens.add({
               targets: card,
@@ -640,7 +674,7 @@ export class TavernScene extends Phaser.Scene {
                   onComplete: () => {
                     // Change to revealed texture
                     card.setTexture("card-revealed-bg");
-                    
+
                     // Add vote value text on the card (using voteValue from parent scope)
                     const voteLabel = this.add
                       .text(cardX, cardY, voteValue, {
@@ -699,11 +733,15 @@ export class TavernScene extends Phaser.Scene {
                   const centerX = 400;
                   const centerY = 300;
                   const cardDistance = 0.55;
-                  const baseCardX = player.position.x + (centerX - player.position.x) * cardDistance;
-                  const baseCardY = player.position.y + (centerY - player.position.y) * cardDistance;
+                  const baseCardX =
+                    player.position.x +
+                    (centerX - player.position.x) * cardDistance;
+                  const baseCardY =
+                    player.position.y +
+                    (centerY - player.position.y) * cardDistance;
                   const offsetX = idx * 10;
                   const offsetY = -idx * 4;
-                  
+
                   this.tweens.add({
                     targets: card,
                     x: baseCardX + offsetX,
@@ -726,7 +764,7 @@ export class TavernScene extends Phaser.Scene {
 
     this.players.forEach((player) => {
       // Remove all cards and set back to waiting
-      player.voteCards.forEach(card => card.destroy());
+      player.voteCards.forEach((card) => card.destroy());
       player.voteCards = [];
 
       if (player.statusIcon) {
