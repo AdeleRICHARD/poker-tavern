@@ -1,7 +1,7 @@
 <template>
     <div class="jira-import" v-if="gameStore.currentSession">
         <h3>📋 JIRA Integration</h3>
-        
+
         <div class="jira-connect" v-if="!isConnected">
             <button @click="connectToJira" class="wow-button connect-btn">
                 🔗 Connect to JIRA
@@ -14,9 +14,11 @@
         <div class="jira-connected" v-else>
             <div class="connected-status">
                 <span class="status-badge connected">✅ Connected to JIRA</span>
-                <button @click="disconnect" class="disconnect-btn">Disconnect</button>
+                <button @click="disconnect" class="disconnect-btn">
+                    Disconnect
+                </button>
             </div>
-            
+
             <div class="search-form">
                 <input
                     v-model="searchQuery"
@@ -25,26 +27,37 @@
                     class="search-input"
                     @keyup.enter="searchIssues"
                 />
-                <button @click="searchIssues" class="wow-button search-btn" :disabled="isLoading">
-                    {{ isLoading ? 'Searching...' : '🔍 Search' }}
+                <button
+                    @click="searchIssues"
+                    class="wow-button search-btn"
+                    :disabled="isLoading"
+                >
+                    {{ isLoading ? "Searching..." : "🔍 Search" }}
                 </button>
             </div>
-            
+
             <div v-if="searchError" class="search-error">
                 <p>❌ {{ searchError }}</p>
             </div>
-            
+
             <!-- Search Results Section -->
             <div v-if="searchResults.length > 0" class="search-results">
                 <h4>🔍 Search Results</h4>
                 <div class="results-list">
-                    <div v-for="issue in searchResults" :key="issue.id" class="issue-card">
+                    <div
+                        v-for="issue in searchResults"
+                        :key="issue.id"
+                        class="issue-card"
+                    >
                         <div class="issue-title">{{ issue.title }}</div>
                         <div class="issue-actions">
                             <button @click="viewIssue(issue)" class="view-btn">
                                 View
                             </button>
-                            <button @click="importIssueDirectly(issue)" class="import-btn">
+                            <button
+                                @click="importIssueDirectly(issue)"
+                                class="import-btn"
+                            >
                                 Import
                             </button>
                         </div>
@@ -52,20 +65,42 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Issues Overview Section (Always visible if there are imported stories, independent of JIRA connection) -->
         <div v-if="importedIssues.length > 0" class="issues-overview">
             <h4>📋 Issues Overview</h4>
             <div class="issues-list">
-                <div v-for="issue in importedIssues" :key="issue.uniqueKey" class="issue-card">
+                <div
+                    v-for="issue in importedIssues"
+                    :key="issue.uniqueKey"
+                    class="issue-card"
+                >
                     <div class="issue-title">{{ issue.title }}</div>
                     <div class="issue-actions">
                         <div class="voting-indicator">
-                            <span v-if="issue.hasVoted" class="vote-status voted" title="You have voted">✅</span>
-                            <span v-else class="vote-status not-voted" title="Not voted yet">⭕</span>
+                            <span
+                                v-if="issue.hasVoted"
+                                class="vote-status voted"
+                                title="You have voted"
+                                >✅</span
+                            >
+                            <span
+                                v-else
+                                class="vote-status not-voted"
+                                title="Not voted yet"
+                                >⭕</span
+                            >
                         </div>
-                        <button @click="selectIssueForVoting(issue)" class="select-btn" :class="{ active: isSelectedForVoting(issue) }">
-                            {{ isSelectedForVoting(issue) ? 'Selected' : 'Select' }}
+                        <button
+                            @click="selectIssueForVoting(issue)"
+                            class="select-btn"
+                            :class="{ active: isSelectedForVoting(issue) }"
+                        >
+                            {{
+                                isSelectedForVoting(issue)
+                                    ? "Selected"
+                                    : "Select"
+                            }}
                         </button>
                         <button @click="viewIssue(issue)" class="view-btn">
                             View
@@ -74,54 +109,58 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Issue Details Modal -->
-        <JiraIssueModal 
+        <JiraIssueModal
             ref="issueModal"
             :issue="selectedIssue"
             :mode="modalMode"
             @import="handleIssueImport"
         />
-        
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { useGameStore } from '@/stores/gameStore';
-import SimpleJiraAuth from '@/auth/SimpleJiraAuth';
-import JiraIssueModal from './JiraIssueModal.vue';
-import { getApiUrl } from '@/config/api';
+import { ref, onMounted, computed, nextTick } from "vue";
+import { useGameStore } from "@/stores/gameStore";
+import SimpleJiraAuth from "@/auth/SimpleJiraAuth";
+import JiraIssueModal from "./JiraIssueModal.vue";
+import { getApiUrl } from "@/config/api";
 
 const gameStore = useGameStore();
 const isConnected = ref(false);
 const isLoading = ref(false);
-const searchQuery = ref('project=IMMO AND Sprint="POKER" AND status="To Do" AND "Story point estimate"=0 ORDER BY rank ASC');
+const searchQuery = ref(
+    'project=IMMO AND Sprint="POKER" AND status="To Do" AND "Story point estimate"=0 ORDER BY rank ASC',
+);
 const searchResults = ref<any[]>([]);
-const searchError = ref<string>('');
+const searchError = ref<string>("");
 const currentUser = ref<any>(null);
 const jiraAuth = new SimpleJiraAuth();
 const selectedIssueForVoting = ref<any>(null);
 const selectedIssue = ref<any>(null);
-const modalMode = ref<'import' | 'view'>('view');
+const modalMode = ref<"import" | "view">("view");
 const issueModal = ref<InstanceType<typeof JiraIssueModal>>();
 
 // Computed property to show imported stories (always visible regardless of JIRA connection)
 const importedIssues = computed(() => {
     const issues: any[] = [];
-    
+
     // Show imported stories from the session (from localStorage)
-    gameStore.currentSession?.stories?.forEach(story => {
+    gameStore.currentSession?.stories?.forEach((story) => {
         // Check if the current player has voted on this story
-        const hasVoted = gameStore.currentSession?.persistentVotes?.[story.id]?.[gameStore.currentPlayer?.id] !== undefined;
-        
+        const hasVoted =
+            gameStore.currentSession?.persistentVotes?.[story.id]?.[
+                gameStore.currentPlayer?.id
+            ] !== undefined;
+
         issues.push({
             ...story,
             uniqueKey: `story_${story.id}`,
-            hasVoted: hasVoted
+            hasVoted: hasVoted,
         });
     });
-    
+
     return issues;
 });
 
@@ -130,20 +169,21 @@ const allIssues = computed(() => {
     return importedIssues.value;
 });
 
-
 async function connectToJira() {
     if (!gameStore.currentSession?.id) {
-        console.error('No session ID available');
+        console.error("No session ID available");
         return;
     }
-    
+
     try {
-        const userData = await jiraAuth.authenticate(gameStore.currentSession.id);
+        const userData = await jiraAuth.authenticate(
+            gameStore.currentSession.id,
+        );
         currentUser.value = userData;
         isConnected.value = true;
-        console.log('JIRA authentication successful:', userData);
+        console.log("JIRA authentication successful:", userData);
     } catch (error) {
-        console.error('JIRA authentication failed:', error);
+        console.error("JIRA authentication failed:", error);
         // You might want to show a user-friendly error message here
     }
 }
@@ -152,24 +192,30 @@ function disconnect() {
     isConnected.value = false;
     currentUser.value = null;
     searchResults.value = [];
-    searchQuery.value = '';
-    searchError.value = '';
+    searchQuery.value = "";
+    searchError.value = "";
 }
 
 async function searchIssues() {
     if (!searchQuery.value.trim() || !gameStore.currentSession?.id) return;
-    
+
     isLoading.value = true;
-    searchError.value = '';
+    searchError.value = "";
     searchResults.value = [];
-    
+
     try {
-        const issues = await jiraAuth.searchIssues(gameStore.currentSession.id, searchQuery.value);
+        const issues = await jiraAuth.searchIssues(
+            gameStore.currentSession.id,
+            searchQuery.value,
+        );
         searchResults.value = issues;
-        console.log('Search successful, found', issues.length, 'issues');
+        console.log("Search successful, found", issues.length, "issues");
     } catch (error) {
-        console.error('Search failed:', error);
-        searchError.value = error instanceof Error ? error.message : 'Search failed. Please try again.';
+        console.error("Search failed:", error);
+        searchError.value =
+            error instanceof Error
+                ? error.message
+                : "Search failed. Please try again.";
     } finally {
         isLoading.value = false;
     }
@@ -179,70 +225,74 @@ async function checkConnectionStatus() {
     try {
         // First try API token mode (no session needed)
         let connected = await jiraAuth.isAuthenticated();
-        
+
         // If not connected via API token, try OAuth mode with session
         if (!connected && gameStore.currentSession?.id) {
-            connected = await jiraAuth.isAuthenticated(gameStore.currentSession.id);
+            connected = await jiraAuth.isAuthenticated(
+                gameStore.currentSession.id,
+            );
         }
-        
+
         isConnected.value = connected;
-        console.log('JIRA connection status:', connected);
-        
+        console.log("JIRA connection status:", connected);
+
         // Auto-load POKER tickets if connected
         if (connected && searchResults.value.length === 0) {
             await searchIssues();
         }
     } catch (error) {
-        console.error('Failed to check connection status:', error);
+        console.error("Failed to check connection status:", error);
     }
 }
 
 async function importIssue(issue: any) {
     if (!gameStore.currentSession?.id) {
-        console.error('No session ID available');
+        console.error("No session ID available");
         return;
     }
-    
+
     try {
         const story = {
             id: issue.id,
             title: issue.title,
-            description: issue.description || '',
-            jiraKey: issue.jiraKey
+            description: issue.description || "",
+            jiraKey: issue.jiraKey,
         };
-        
+
         // Call backend API to import and broadcast to all users
-        const response = await fetch(getApiUrl('/jira/import-issues'), {
-            method: 'POST',
+        const response = await fetch(getApiUrl("/jira/import-issues"), {
+            method: "POST",
             headers: {
-                'Content-Type': 'application/json',
+                "Content-Type": "application/json",
             },
             body: JSON.stringify({
                 sessionId: gameStore.currentSession.id,
-                stories: [story]
+                stories: [story],
             }),
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to import issue: ${response.status}`);
         }
-        
+
         const result = await response.json();
-        console.log('Issue imported successfully:', result);
-        
+        console.log("Issue imported successfully:", result);
+
         // The story will be added to the session via WebSocket broadcast
         // so we don't need to call addStoriesToSession here
-        
+
         // Remove from search results
-        searchResults.value = searchResults.value.filter(i => i.jiraKey !== issue.jiraKey);
+        searchResults.value = searchResults.value.filter(
+            (i) => i.jiraKey !== issue.jiraKey,
+        );
     } catch (error) {
-        console.error('Import failed:', error);
+        console.error("Import failed:", error);
         // Fallback to local addition if API call fails
         const story = {
             id: issue.id,
             title: issue.title,
-            description: issue.description || '',
-            jiraKey: issue.jiraKey
+            description: issue.description || "",
+            jiraKey: issue.jiraKey,
         };
         gameStore.addStoriesToSession([story]);
     }
@@ -254,17 +304,23 @@ function importIssueDirectly(issue: any) {
 }
 
 // View function that shows issue details in a modal
-function viewIssue(issue: any) {
-    console.log('Viewing issue:', issue);
+async function viewIssue(issue: any) {
     selectedIssue.value = issue;
-    modalMode.value = 'view';
-    issueModal.value?.openModal();
+    modalMode.value = "view";
+
+    // Wait for DOM update to ensure ref is bound
+    await nextTick();
+
+    if (issueModal.value?.openModal) {
+        issueModal.value.openModal();
+    }
 }
 
 // Show modal function for import
-function showIssueModal(issue: any) {
+async function showIssueModal(issue: any) {
     selectedIssue.value = issue;
-    modalMode.value = 'import';
+    modalMode.value = "import";
+    await nextTick();
     issueModal.value?.openModal();
 }
 
@@ -272,8 +328,8 @@ function showIssueModal(issue: any) {
 function selectIssueForVoting(issue: any) {
     selectedIssueForVoting.value = issue;
     // Emit event to parent component (TavernView) so it can update the voting UI
-    emit('issue-selected', issue);
-    console.log('Selected issue for voting:', issue.title);
+    emit("issue-selected", issue);
+    console.log("Selected issue for voting:", issue.title);
 }
 
 function isSelectedForVoting(issue: any): boolean {
@@ -287,7 +343,7 @@ function handleIssueImport(issue: any) {
 
 // Define emits
 const emit = defineEmits<{
-    'issue-selected': [issue: any];
+    "issue-selected": [issue: any];
 }>();
 
 // Check connection status on mount
@@ -439,7 +495,7 @@ onMounted(() => {
 
 .search-results {
     /* Removed fixed max-height to let it grow if needed, or set a larger one */
-    max-height: 400px; 
+    max-height: 400px;
     overflow-y: auto;
     border: 1px solid #8b4513;
     border-radius: 4px;
@@ -549,7 +605,6 @@ onMounted(() => {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-
 .issues-list {
     max-height: 250px;
     overflow-y: auto;
@@ -575,7 +630,6 @@ onMounted(() => {
 .issue-card:hover {
     background: rgba(255, 255, 255, 0.08);
 }
-
 
 .issue-title {
     color: #f4f4f4;
@@ -691,8 +745,15 @@ onMounted(() => {
 }
 
 @keyframes sparkle {
-    0%, 100% { transform: scale(1); opacity: 0.8; }
-    50% { transform: scale(1.1); opacity: 1; }
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
 }
 
 .action-btn {
@@ -984,7 +1045,8 @@ onMounted(() => {
     margin: 0 0 1rem 0;
 }
 
-.description-content ul, .description-content ol {
+.description-content ul,
+.description-content ol {
     margin: 0 0 1rem 1.5rem;
 }
 
@@ -1034,27 +1096,27 @@ onMounted(() => {
     .jira-import {
         padding: 0.5rem;
     }
-    
+
     .jira-import h3 {
         font-size: 0.9rem;
         margin-bottom: 0.5rem;
     }
-    
+
     .search-results,
     .imported-stories-list {
         max-height: 150px;
     }
-    
+
     .issue-title,
     .imported-story-item .story-title {
         font-size: 0.75rem;
     }
-    
+
     .issue-key,
     .imported-story-item .story-key {
         font-size: 0.75rem;
     }
-    
+
     .imported-stories h4 {
         font-size: 0.85rem;
     }
