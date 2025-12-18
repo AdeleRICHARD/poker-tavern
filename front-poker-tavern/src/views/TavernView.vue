@@ -777,6 +777,7 @@ function onIssueSelected(issue: any) {
     gap: 1rem;
     height: 100%;
     overflow-y: auto;
+    padding-right: 0.5rem;
 }
 
 /* Center Column: Game + Chat */
@@ -817,9 +818,7 @@ function onIssueSelected(issue: any) {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    overflow-y: auto;
-    flex: 1; /* Take remaining height in left sidebar */
-    padding-right: 0.5rem;
+    flex-shrink: 0;
 }
 
 .character-btn-list {
@@ -1869,7 +1868,7 @@ function onIssueSelected(issue: any) {
     padding: 0.75rem;
     display: flex;
     flex-direction: column;
-    max-height: 300px;
+    flex-shrink: 0;
 }
 
 .issues-section h4 {
@@ -1882,11 +1881,9 @@ function onIssueSelected(issue: any) {
 }
 
 .issues-list-left {
-    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    flex: 1;
 }
 
 .issue-item-left {
@@ -1989,6 +1986,25 @@ function onIssueSelected(issue: any) {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+}
+
+/* Scrollbar styling for left sidebar */
+.left-sidebar::-webkit-scrollbar {
+    width: 8px;
+}
+
+.left-sidebar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.left-sidebar::-webkit-scrollbar-thumb {
+    background: #8b6914;
+    border-radius: 4px;
+}
+
+.left-sidebar::-webkit-scrollbar-thumb:hover {
+    background: #daa520;
 }
 
 @media (max-width: 1200px) {
