@@ -38,10 +38,26 @@ function handleLogout() {
 }
 </script>
 
-<!-- Global styles (not scoped) -->
 <style>
-/* WoW-inspired styles */
+/* WoW-inspired Fantasy Tavern Styles */
 @import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap");
+
+:root {
+    /* "Fantasy Tavern" Palette */
+    --color-bg-dark: #120c08;
+    --color-wood-dark: #2c1a12;
+    --color-wood-medium: #3e2723;
+    --color-wood-light: #5d4037;
+    --color-gold: #d4af37;
+    --color-gold-glow: #ffd700;
+    --color-text-parchment: #e0d8c3;
+    --color-text-muted: #a69b8d;
+    --color-fire: #ff5722;
+    
+    --shadow-deep: 0 4px 12px rgba(0, 0, 0, 0.8);
+    --border-gold: 2px solid var(--color-gold);
+}
 
 * {
     margin: 0;
@@ -51,51 +67,63 @@ function handleLogout() {
 
 body {
     font-family: "Cinzel", serif, system-ui;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    color: #f4f4f4;
+    /* Deep, smoky tavern corner background */
+    background: radial-gradient(circle at 50% 30%, #2c1a12 0%, #120c08 90%);
+    color: var(--color-text-parchment);
     min-height: 100vh;
 }
 
 /* Global utility classes */
 .wow-button {
-    background: linear-gradient(145deg, #8b4513, #a0522d);
-    border: 2px solid #daa520;
-    color: #ffd700;
+    background: linear-gradient(180deg, #5d4037 0%, #3e2723 100%);
+    border: 2px solid var(--color-gold);
+    color: var(--color-gold-glow);
     padding: 0.75rem 1.5rem;
     font-family: "Cinzel", serif;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
-    border-radius: 8px;
-    transition: all 0.3s ease;
+    border-radius: 6px;
+    transition: all 0.2s ease;
     text-transform: uppercase;
     letter-spacing: 1px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
 }
 
-.wow-button:hover {
-    background: linear-gradient(145deg, #a0522d, #cd853f);
-    box-shadow: 0 4px 12px rgba(218, 165, 32, 0.4);
-    transform: translateY(-2px);
+.wow-button:hover:not(:disabled) {
+    background: linear-gradient(180deg, #6d4c41 0%, #4e342e 100%);
+    border-color: var(--color-gold-glow);
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+    transform: translateY(-1px);
+}
+
+.wow-button:disabled {
+    background: #2c1a12;
+    border-color: #5d4037;
+    color: #5d4037;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
 .wow-panel {
-    background: linear-gradient(145deg, #2c2c54, #2c3e50);
-    border: 3px solid #8b4513;
-    border-radius: 12px;
+    background: rgba(44, 26, 18, 0.95); /* Dark wood semi-transparent */
+    border: 2px solid var(--color-gold);
+    border-radius: 8px;
     padding: 1.5rem;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-deep), inset 0 0 30px rgba(0,0,0,0.8);
     position: relative;
+    backdrop-filter: blur(5px);
 }
 
-.wow-panel::before {
+/* Decorative corner accents for panels could go here */
+.wow-panel::after {
     content: "";
     position: absolute;
-    top: -3px;
-    left: -3px;
-    right: -3px;
-    bottom: -3px;
-    background: linear-gradient(45deg, #daa520, #ffd700, #daa520);
-    border-radius: 15px;
-    z-index: -1;
+    top: 4px; left: 4px; right: 4px; bottom: 4px;
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 4px;
+    pointer-events: none;
 }
 </style>
 

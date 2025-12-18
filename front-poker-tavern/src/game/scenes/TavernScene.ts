@@ -35,11 +35,11 @@ export class TavernScene extends Phaser.Scene {
     this.backgroundSprite = this.add.sprite(400, 300, "tavern-bg");
     this.backgroundSprite.setDisplaySize(800, 600);
 
-    // Round table in center
-    this.tableSprite = this.add.sprite(400, 300, "round-table");
-    this.tableSprite.setDisplaySize(300, 300);
+    // Oval table in center (Perspective view)
+    this.tableSprite = this.add.sprite(400, 400, "round-table"); // Lowered Y for perspective
+    this.tableSprite.setDisplaySize(700, 350); // Wider oval
 
-    // Define positions around table (8 seats maximum)
+    // Define positions around table (Arc layout for "seated across" feel)
     this.setupTablePositions();
 
     // Add decorative elements
@@ -51,49 +51,42 @@ export class TavernScene extends Phaser.Scene {
 
   private createTableTexture() {
     const graphics = this.add.graphics();
+    const width = 600;
+    const height = 300;
+    const cx = width / 2;
+    const cy = height / 2;
 
     // Table shadow
     graphics.fillStyle(0x0a0705, 0.5);
-    graphics.fillCircle(155, 155, 145);
+    graphics.fillEllipse(cx + 5, cy + 5, width - 10, height - 10);
 
     // Main table body - rich dark wood
-    graphics.fillStyle(0x5a3d2b);
-    graphics.fillCircle(150, 150, 140);
+    graphics.fillStyle(0x2c1a12); // Darker wood for new theme
+    graphics.fillEllipse(cx, cy, width - 20, height - 20);
 
-    // Inner wood ring - lighter
-    graphics.fillStyle(0x6b4a35);
-    graphics.fillCircle(150, 150, 120);
+    // Inner wood ring
+    graphics.fillStyle(0x3e2723);
+    graphics.fillEllipse(cx, cy, width - 60, height - 60);
 
-    // Center - even lighter
-    graphics.fillStyle(0x7a5540);
-    graphics.fillCircle(150, 150, 80);
+    // Center area
+    graphics.fillStyle(0x4e342e);
+    graphics.fillEllipse(cx, cy, width - 140, height - 100);
 
-    // Wood grain rings
-    graphics.lineStyle(1, 0x4a3020, 0.4);
-    graphics.strokeCircle(150, 150, 100);
-    graphics.strokeCircle(150, 150, 60);
-    graphics.strokeCircle(150, 150, 30);
-
-    // Radial wood grain lines
-    graphics.lineStyle(2, 0x3a2515, 0.3);
-    for (let i = 0; i < 12; i++) {
-      const angle = (i * Math.PI * 2) / 12;
-      const x1 = 150 + Math.cos(angle) * 40;
-      const y1 = 150 + Math.sin(angle) * 40;
-      const x2 = 150 + Math.cos(angle) * 130;
-      const y2 = 150 + Math.sin(angle) * 130;
-      graphics.lineBetween(x1, y1, x2, y2);
+    // Grain lines (Horizontal for perspective illusion)
+    graphics.lineStyle(2, 0x1a0f0a, 0.2);
+    for (let y = 40; y < height - 40; y += 20) {
+        graphics.lineBetween(40, y, width - 40, y);
     }
 
     // Thick golden border with bevel effect
     graphics.lineStyle(8, 0x8b6914);
-    graphics.strokeCircle(150, 150, 140);
+    graphics.strokeEllipse(cx, cy, width - 20, height - 20);
     graphics.lineStyle(4, 0xd4a756);
-    graphics.strokeCircle(150, 150, 142);
-    graphics.lineStyle(2, 0xffd700);
-    graphics.strokeCircle(150, 150, 144);
+    graphics.strokeEllipse(cx, cy, width - 20, height - 20);
+    graphics.lineStyle(2, 0xffd700); // Bright gold highlight
+    graphics.strokeEllipse(cx, cy, width - 20, height - 20);
 
-    graphics.generateTexture("round-table", 300, 300);
+    graphics.generateTexture("round-table", width, height);
     graphics.destroy();
   }
 
@@ -236,16 +229,31 @@ export class TavernScene extends Phaser.Scene {
   }
 
   private setupTablePositions() {
-    // 8 positions around the round table
+    // Arc positions for "seated across" view
+    // Players sit on the far side (top semi-ellipse)
     const centerX = 400;
-    const centerY = 300;
-    const radius = 180;
-
-    for (let i = 0; i < 8; i++) {
-      const angle = (i * Math.PI * 2) / 8 - Math.PI / 2; // Start at top
-      const x = centerX + Math.cos(angle) * radius;
-      const y = centerY + Math.sin(angle) * radius;
-      this.tablePositions.push({ x, y });
+    const centerY = 380; // Match table center
+    const radiusX = 300; // Match table width
+    const radiusY = 150; // Match table height (ellipse)
+    
+    // Position 5 seats in an arc from left to right on the far side
+    // Angles: PI (Left) to 2*PI (Right) -> Top half in standard math, but screen Y is down
+    // Actually we want them "behind" the table, so Y < centerY.
+    // Angles: 180 deg to 360 deg.
+    
+    const totalSeats = 5;
+    const startAngle = Math.PI + 0.2; // Slightly above horizon
+    const endAngle = 2 * Math.PI - 0.2;
+    
+    for (let i = 0; i < totalSeats; i++) {
+        // Distribute inclusive of start/end
+        const t = i / (totalSeats - 1); 
+        const angle = startAngle + t * (endAngle - startAngle);
+        
+        const x = centerX + Math.cos(angle) * (radiusX + 40); // Slightly outside table
+        const y = centerY + Math.sin(angle) * (radiusY + 40);
+        
+        this.tablePositions.push({ x, y });
     }
   }
 
@@ -315,11 +323,25 @@ export class TavernScene extends Phaser.Scene {
     });
   }
 
+  // ... inside TavernScene class
+  private localPlayerId: string | null = null;
+
+  setLocalPlayerId(id: string) {
+    this.localPlayerId = id;
+  }
+
   // Public methods called from GameManager
   addPlayer(playerId: string, playerData: any) {
     console.log("TavernScene.addPlayer called:", playerId, playerData);
 
-    // If player already exists, preserve their vote cards
+    // Don't render sprite for local player (First person view)
+    if (this.localPlayerId && playerId === this.localPlayerId) {
+        console.log("Skipping sprite for local player (First Person View):", playerId);
+        return;
+    }
+    
+    // ... existing logic
+
     let existingVoteCards: Phaser.GameObjects.Sprite[] = [];
     let existingVote: string | undefined = undefined;
 
