@@ -616,6 +616,9 @@ export class TavernScene extends Phaser.Scene {
         const cardSpacing = 50;
         const playerSpacing = 90;
 
+        // Keep track of temporary UI elements for cleanup
+        const tempUIElements: Phaser.GameObjects.GameObject[] = [];
+
         // Convert players map to array and reveal each
         const playersArray = Array.from(this.players.entries());
 
@@ -637,6 +640,8 @@ export class TavernScene extends Phaser.Scene {
             .setOrigin(0, 0.5)
             .setDepth(100)
             .setAlpha(0);
+
+          tempUIElements.push(playerHeader);
 
           // Animate player name in
           this.tweens.add({
@@ -686,6 +691,8 @@ export class TavernScene extends Phaser.Scene {
                       .setOrigin(0.5)
                       .setDepth(101 + cardIndex);
 
+                    tempUIElements.push(voteLabel);
+
                     // Flip back
                     this.tweens.add({
                       targets: card,
@@ -721,12 +728,16 @@ export class TavernScene extends Phaser.Scene {
         this.input.once("pointerdown", () => {
           // Fade out overlay and clean up
           this.tweens.add({
-            targets: [overlay, closeText],
+            targets: [overlay, closeText, ...tempUIElements],
             alpha: 0,
             duration: 300,
             onComplete: () => {
               overlay.destroy();
               closeText.destroy();
+              tempUIElements.forEach((el) => el.destroy());
+
+              this.isVotesRevealed = false;
+
               // Return cards to original positions
               this.players.forEach((player) => {
                 player.voteCards.forEach((card, idx) => {
@@ -749,6 +760,9 @@ export class TavernScene extends Phaser.Scene {
                     scale: 1,
                     depth: 10 + idx,
                     duration: 300,
+                    onComplete: () => {
+                      card.setTexture("card-hidden");
+                    },
                   });
                 });
               });
@@ -775,12 +789,13 @@ export class TavernScene extends Phaser.Scene {
       // (Vote texts are not stored, they will be automatically destroyed on next resetTable)
     });
 
-    // Clean up all remaining vote texts
+    // Clean up all remaining vote texts and reveal UI
     this.children.list
       .filter(
         (child) =>
           child instanceof Phaser.GameObjects.Text &&
-          (child as Phaser.GameObjects.Text).text.match(/^[0-9?☕]+$/),
+          (child.depth >= 100 ||
+            (child as Phaser.GameObjects.Text).text.match(/^[0-9?☕]+$/)),
       )
       .forEach((child) => child.destroy());
   }
