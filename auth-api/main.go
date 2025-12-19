@@ -445,11 +445,15 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 		PlayerName string `json:"playerName"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Printf("❌ Join session - Invalid JSON: %v", err)
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
+	log.Printf("🎮 Join session request - SessionID: %s, PlayerName: %s", payload.SessionID, payload.PlayerName)
+
 	if payload.SessionID == "" || payload.PlayerName == "" {
+		log.Printf("❌ Join session - Missing required fields")
 		http.Error(w, "Both sessionId and playerName are required", http.StatusBadRequest)
 		return
 	}
@@ -458,9 +462,21 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 	session, ok := sessions[payload.SessionID]
 	if !ok {
 		sessionsMutex.Unlock()
+		log.Printf("❌ Join session - Session not found: %s", payload.SessionID)
+		log.Printf("📊 Available sessions: %d", len(sessions))
+		// Log first few session IDs for debugging
+		count := 0
+		for id := range sessions {
+			if count < 3 {
+				log.Printf("  - Session ID: %s", id)
+				count++
+			}
+		}
 		http.Error(w, "Session not found", http.StatusNotFound)
 		return
 	}
+
+	log.Printf("✅ Session found: %s (Name: %s, Players: %d)", payload.SessionID, session.Name, len(session.Players))
 
 	// Add player if not already present.
 	playerExists := slices.Contains(session.Players, payload.PlayerName)
@@ -1350,10 +1366,10 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				hub.broadcast <- broadcastBytes
 			case "vote_cast":
 				log.Printf("🗳️ Received vote_cast message: %+v", incoming)
-				storyID, storyOK := incoming["storyId"].(string)
-				playerID, playerOK := incoming["playerId"].(string)
+				storyID, storyOK := incoming["story_id"].(string)
+				playerID, playerOK := incoming["player_id"].(string)
 				vote, voteOK := incoming["vote"].(string)
-				playerName, playerNameOK := incoming["playerName"].(string)
+				playerName, playerNameOK := incoming["player_name"].(string)
 				log.Printf("🔍 Vote data extracted - storyID:%s(%v), playerID:%s(%v), vote:%s(%v), playerName:%s(%v)",
 					storyID, storyOK, playerID, playerOK, vote, voteOK, playerName, playerNameOK)
 
@@ -1375,11 +1391,11 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 				// Broadcast the vote to all clients
 				broadcastMsg := map[string]interface{}{
-					"type":       "vote_cast",
-					"storyId":    storyID,
-					"playerId":   playerID,
-					"vote":       vote,
-					"playerName": playerName,
+					"type":        "vote_cast",
+					"story_id":    storyID,
+					"player_id":   playerID,
+					"vote":        vote,
+					"player_name": playerName,
 				}
 				broadcastBytes, _ := json.Marshal(broadcastMsg)
 				log.Printf("🗚️ Broadcasting vote_cast message: %s", string(broadcastBytes))
@@ -1524,7 +1540,7 @@ func demoOAuthHandler(w http.ResponseWriter, r *http.Request) {
 			<script>
 				let countdown = 5;
 				const countdownElement = document.getElementById('countdown');
-				
+
 				function updateCountdown() {
 					countdown--;
 					if (countdownElement) {
@@ -1534,7 +1550,7 @@ func demoOAuthHandler(w http.ResponseWriter, r *http.Request) {
 						completeAuth();
 					}
 				}
-				
+
 				function completeAuth() {
 					try {
 						window.opener.postMessage({
@@ -1547,7 +1563,7 @@ func demoOAuthHandler(w http.ResponseWriter, r *http.Request) {
 						window.close();
 					}
 				}
-				
+
 				// Start countdown
 				setInterval(updateCountdown, 1000);
 			</script>

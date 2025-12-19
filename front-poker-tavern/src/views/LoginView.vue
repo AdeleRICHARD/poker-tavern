@@ -29,6 +29,9 @@
                             placeholder="Enter session ID or leave empty to create"
                             class="form-input"
                         />
+                        <div v-if="sessionId" class="session-prefilled-notice">
+                            ✨ Ready to join! Just enter your name above.
+                        </div>
                     </div>
 
                     <div class="form-actions">
@@ -112,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { useGameStore } from "@/stores/gameStore";
 
 // Emit event to parent component when login is successful
@@ -129,6 +132,21 @@ const sessionId = ref("");
 const newSessionName = ref("");
 const isLoading = ref(false);
 const errorMessage = ref("");
+
+// Check URL parameters for invite link
+onMounted(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionIdParam = urlParams.get("sessionId");
+    if (sessionIdParam) {
+        sessionId.value = sessionIdParam;
+        // Clean up URL after extracting the parameter
+        window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname,
+        );
+    }
+});
 
 // Handlers
 async function handleLogin() {
@@ -404,5 +422,28 @@ async function handleCreateSession() {
 button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+.session-prefilled-notice {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(46, 204, 113, 0.1);
+    border: 1px solid rgba(46, 204, 113, 0.3);
+    border-radius: 4px;
+    color: #2ecc71;
+    font-size: 0.85rem;
+    text-align: center;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 </style>

@@ -22,7 +22,8 @@
                         <span class="player-count"
                             >👥
                             {{
-                                gameStore.currentSession.requiredPlayers?.length || 0
+                                gameStore.currentSession.requiredPlayers
+                                    ?.length || 0
                             }}</span
                         >
                     </div>
@@ -37,10 +38,17 @@
                             @click="copySessionId"
                             class="copy-btn-small"
                             :class="{ copied: showCopied }"
-                            :title="showCopied ? 'Copied!' : 'Copy ID'"
+                            :title="
+                                showCopied
+                                    ? 'Copied invite link!'
+                                    : 'Copy invite link to share with team'
+                            "
                         >
-                            {{ showCopied ? "✅" : "📋" }}
+                            {{ showCopied ? "✅" : "🔗" }}
                         </button>
+                    </div>
+                    <div class="invite-help" v-if="showCopied">
+                        <small>✨ Share this link with your team!</small>
                     </div>
                 </div>
 
@@ -75,7 +83,10 @@
 
                 <!-- Issues Overview (moved from right sidebar) -->
                 <div
-                    v-if="gameStore.currentSession?.stories && gameStore.currentSession.stories.length > 0"
+                    v-if="
+                        gameStore.currentSession?.stories &&
+                        gameStore.currentSession.stories.length > 0
+                    "
                     class="issues-section"
                 >
                     <h4>📋 Issues to Estimate</h4>
@@ -679,8 +690,12 @@ function selectSessionId() {
 
 function copySessionId() {
     if (gameStore.currentSession?.id) {
+        // Create invite link with session ID as URL parameter
+        const baseUrl = window.location.origin;
+        const inviteLink = `${baseUrl}/?sessionId=${gameStore.currentSession.id}`;
+
         navigator.clipboard
-            .writeText(gameStore.currentSession.id)
+            .writeText(inviteLink)
             .then(() => {
                 showCopied.value = true;
                 setTimeout(() => (showCopied.value = false), 2000);
@@ -961,6 +976,31 @@ function onIssueSelected(issue: any) {
 
 .copy-btn-small.copied {
     border-color: #27ae60;
+}
+
+.invite-help {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: rgba(39, 174, 102, 0.1);
+    border: 1px solid rgba(39, 174, 102, 0.3);
+    border-radius: 4px;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.invite-help small {
+    color: #2ecc71;
+    font-size: 0.75rem;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Minimal voting progress */
