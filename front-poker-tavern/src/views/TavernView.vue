@@ -180,9 +180,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Chat under the game (Horizontal) -->
-                <ChatPanel />
             </div>
 
             <!-- Right Sidebar: JIRA Import Only -->
@@ -311,7 +308,6 @@ import { useGameStore, GamePhase } from "@/stores/gameStore";
 import { GameManager } from "@/game/GameManager";
 import JiraImport from "@/components/JiraImport.vue";
 import PokerCards from "@/components/PokerCards.vue";
-import ChatPanel from "@/components/ChatPanel.vue";
 
 // Global store
 const gameStore = useGameStore();
