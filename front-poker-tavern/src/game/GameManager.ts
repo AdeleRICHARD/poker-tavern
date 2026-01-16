@@ -109,10 +109,10 @@ export class GameManager {
     }
   }
 
-  revealAllVotes(persistentVotes: { [storyId: string]: { [playerId: string]: string } }): void {
+  revealAllVotes(stories: any[], persistentVotes: { [storyId: string]: { [playerId: string]: string } }): void {
     const scene = this.getCurrentScene();
     if (scene) {
-      scene.revealAllVotes(persistentVotes);
+      scene.revealAllVotes(stories, persistentVotes);
     }
   }
 

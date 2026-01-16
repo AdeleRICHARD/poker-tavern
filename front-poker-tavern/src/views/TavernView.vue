@@ -131,36 +131,33 @@
                     <PokerCards @submit="submitVote" />
                 </div>
 
-                <!-- Admin Controls (moved from right sidebar) -->
-                <div v-if="gameStore.currentSession" class="game-controls-left">
+                <!-- Admin Controls & Reveal (moved to bottom) -->
+                <div v-if="gameStore.currentSession" class="game-controls-bottom">
+                    <div v-if="!gameStore.allStoriesVotedByEveryone" class="voting-status-hint">
+                        <small>⏳ Waiting for all players to vote on all issues...</small>
+                    </div>
+                    
                     <button
-                        v-if="
-                            gameStore.canReveal &&
-                            !gameStore.isCurrentStoryRevealed
-                        "
-                        class="wow-button reveal-btn"
+                        v-if="gameStore.canReveal && !gameStore.isCurrentStoryRevealed"
+                        class="wow-button reveal-btn highlight"
                         @click="revealAllVotes"
                     >
-                        🎭 Reveal All Votes
+                        🎭 REVEAL ALL VOTES
                     </button>
 
                     <button
-                        v-if="
-                            gameStore.gamePhase === GamePhase.VOTING &&
-                            !gameStore.allStoriesVotedByEveryone &&
-                            gameStore.currentSession
-                        "
-                        class="wow-button test-btn"
+                        v-if="gameStore.gamePhase === GamePhase.VOTING && !gameStore.allStoriesVotedByEveryone"
+                        class="wow-button test-btn-small"
                         @click="makeOthersVote"
                     >
-                        🤖 Make others vote (test)
+                        🤖 Test: Auto-vote
                     </button>
 
                     <button
-                        class="wow-button summary-btn"
+                        class="wow-button summary-btn-small"
                         @click="showSummaryModal = true"
                     >
-                        📊 View Summary
+                        📊 Results Summary
                     </button>
                 </div>
             </div>
@@ -196,109 +193,15 @@
             </div>
         </div>
 
-        <!-- Vote Summary Modal to put in a component -->
-        <div
+        <!-- Vote Summary Modal -->
+        <SummaryModal
             v-if="showSummaryModal"
-            class="modal-overlay"
-            @click="showSummaryModal = false"
-        >
-            <div class="modal-content" @click.stop>
-                <div class="modal-header">
-                    <h2>📊 Voting Summary</h2>
-                    <button class="close-btn" @click="showSummaryModal = false">
-                        ✕
-                    </button>
-                </div>
-
-                <div class="modal-body">
-                    <div class="summary-stats">
-                        <div class="stat-item">
-                            <span class="stat-label">Total Stories:</span>
-                            <span class="stat-value">{{
-                                gameStore.currentSession?.stories.length || 0
-                            }}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Completed:</span>
-                            <span class="stat-value">{{
-                                getCompletedStoriesCount()
-                            }}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Your Progress:</span>
-                            <span class="stat-value">{{
-                                getYourVotesCount()
-                            }}</span>
-                        </div>
-                    </div>
-
-                    <div class="stories-summary">
-                        <div
-                            v-for="(story, index) in gameStore.currentSession
-                                ?.stories"
-                            :key="story.id"
-                            :class="[
-                                'summary-story-item',
-                                { revealed: isStoryRevealed(story.id) },
-                            ]"
-                        >
-                            <div class="summary-story-header">
-                                <span class="summary-story-number">{{
-                                    index + 1
-                                }}</span>
-                                <div class="summary-story-title">
-                                    {{ story.title }}
-                                </div>
-                                <div class="summary-story-status">
-                                    <span
-                                        v-if="isStoryRevealed(story.id)"
-                                        class="status-revealed"
-                                        >✅</span
-                                    >
-                                    <span v-else class="status-pending"
-                                        >{{ getStoryVotesCount(story.id) }}/{{
-                                            gameStore.currentSession
-                                                ?.requiredPlayers.length
-                                        }}</span
-                                    >
-                                </div>
-                            </div>
-
-                            <div
-                                v-if="isStoryRevealed(story.id)"
-                                class="summary-votes"
-                            >
-                                <div class="votes-grid">
-                                    <div
-                                        v-for="result in getStoryResults(
-                                            story.id,
-                                        )"
-                                        :key="result.player"
-                                        class="vote-item"
-                                    >
-                                        <span class="vote-player">{{
-                                            result.player
-                                        }}</span>
-                                        <span class="vote-value">{{
-                                            result.vote
-                                        }}</span>
-                                    </div>
-                                </div>
-                                <div
-                                    v-if="getStoryAverage(story.id)"
-                                    class="story-average"
-                                >
-                                    Average:
-                                    <strong>{{
-                                        getStoryAverage(story.id)
-                                    }}</strong>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+            :stories="gameStore.currentSession?.stories || []"
+            :persistent-votes="gameStore.currentSession?.persistentVotes || {}"
+            :required-count="gameStore.currentSession?.requiredPlayers.length || 0"
+            :your-votes-count="getYourVotesCount()"
+            @close="showSummaryModal = false"
+        />
     </div>
 </template>
 
@@ -308,6 +211,7 @@ import { useGameStore, GamePhase } from "@/stores/gameStore";
 import { GameManager } from "@/game/GameManager";
 import JiraImport from "@/components/JiraImport.vue";
 import PokerCards from "@/components/PokerCards.vue";
+import SummaryModal from "@/components/SummaryModal.vue";
 
 // Global store
 const gameStore = useGameStore();
@@ -422,8 +326,9 @@ watch(
             // Global reveal - pass all votes for all stories
             setTimeout(() => {
                 if (gameStore.currentSession) {
-                    // Pass the full persistentVotes structure (storyId -> playerId -> vote)
+                    // Pass stories and the full persistentVotes structure
                     gameManager.revealAllVotes(
+                        gameStore.currentSession.stories,
                         gameStore.currentSession.persistentVotes,
                     );
                 }
@@ -887,6 +792,41 @@ function onIssueSelected(issue: any) {
     margin-bottom: 0.5rem;
     border-bottom: 1px solid rgba(139, 69, 19, 0.5);
     padding-bottom: 0.5rem;
+}
+
+/* Admin Controls at Bottom */
+.game-controls-bottom {
+    margin-top: auto; /* Push to bottom of sidebar */
+    padding: 1rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    border-top: 2px solid rgba(139, 69, 19, 0.3);
+}
+
+.reveal-btn.highlight {
+    background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+    box-shadow: 0 0 15px rgba(230, 126, 34, 0.4);
+    font-size: 1.1rem;
+    padding: 1rem;
+    border-color: #ffd700;
+}
+
+.voting-status-hint {
+    text-align: center;
+    color: #aaaaaa;
+    margin-bottom: 0.5rem;
+    font-style: italic;
+}
+
+.test-btn-small, .summary-btn-small {
+    padding: 0.5rem;
+    font-size: 0.85rem;
+    opacity: 0.8;
+}
+
+.test-btn-small:hover, .summary-btn-small:hover {
+    opacity: 1;
 }
 
 /* Previous styles... */

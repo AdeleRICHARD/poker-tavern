@@ -16,6 +16,10 @@ export class TavernScene extends Phaser.Scene {
   private backgroundSprite!: Phaser.GameObjects.Sprite;
   private tablePositions: { x: number; y: number }[] = [];
   private isVotesRevealed = false;
+  private revealStoryIndex = 0;
+  private revealUI: Phaser.GameObjects.Group | null = null;
+  private storiesData: any[] = [];
+  private votesData: Record<string, Record<string, string>> = {};
 
   constructor() {
     super({ key: "TavernScene" });
@@ -334,15 +338,6 @@ export class TavernScene extends Phaser.Scene {
   addPlayer(playerId: string, playerData: any) {
     console.log("TavernScene.addPlayer called:", playerId, playerData);
 
-    // Don't render sprite for local player (First person view)
-    if (this.localPlayerId && playerId === this.localPlayerId) {
-      console.log(
-        "Skipping sprite for local player (First Person View):",
-        playerId,
-      );
-      return;
-    }
-
     // ... existing logic
 
     let existingVoteCards: Phaser.GameObjects.Sprite[] = [];
@@ -446,25 +441,8 @@ export class TavernScene extends Phaser.Scene {
     // If we had existing cards, reposition them
     if (existingVoteCards.length > 0) {
       existingVoteCards.forEach((card, index) => {
-        // Place cards directly in front of player (towards table center)
-        const offsetDistance = 60; // Fixed distance from player
-        const stackOffsetX = index * 8; // Horizontal stack offset
-        const stackOffsetY = -index * 3; // Vertical stack offset
-
-        // Calculate direction vector from player to center
-        const centerX = 400;
-        const centerY = 300;
-        const dx = centerX - freePosition.x;
-        const dy = centerY - freePosition.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        // Normalize and apply fixed offset
-        const cardX =
-          freePosition.x + (dx / distance) * offsetDistance + stackOffsetX;
-        const cardY =
-          freePosition.y + (dy / distance) * offsetDistance + stackOffsetY;
-
-        card.setPosition(cardX, cardY);
+        const pos = this.getCardPosition(freePosition, index);
+        card.setPosition(pos.x, pos.y);
       });
       console.log("Repositioned existing vote cards for player:", playerId);
     }
@@ -513,6 +491,29 @@ export class TavernScene extends Phaser.Scene {
     this.players.delete(playerId);
   }
 
+  private getCardPosition(
+    playerPosition: { x: number; y: number },
+    index: number,
+  ) {
+    const centerX = 400;
+    const centerY = 400; // Table center
+    const offsetDistance = 75; // Landing spot relative to player position towards center
+    const stackOffsetX = index * 8;
+    const stackOffsetY = -index * 3;
+
+    const dx = centerX - playerPosition.x;
+    const dy = centerY - playerPosition.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // If distance is 0 (shouldn't happen), return player position
+    if (distance === 0) return { x: playerPosition.x, y: playerPosition.y };
+
+    return {
+      x: playerPosition.x + (dx / distance) * offsetDistance + stackOffsetX,
+      y: playerPosition.y + (dy / distance) * offsetDistance + stackOffsetY,
+    };
+  }
+
   updatePlayerVote(playerId: string, hasVoted: boolean, voteCount: number = 1) {
     console.log(
       "TavernScene.updatePlayerVote called:",
@@ -540,26 +541,13 @@ export class TavernScene extends Phaser.Scene {
       for (let i = 0; i < cardsToAdd; i++) {
         const cardIndex = player.voteCards.length;
 
-        // Place cards directly in front of player (towards table center)
-        const offsetDistance = 60; // Fixed distance from player
-        const stackOffsetX = cardIndex * 8; // Horizontal stack offset
-        const stackOffsetY = -cardIndex * 3; // Vertical stack offset
-
-        // Calculate direction vector from player to center
-        const centerX = 400;
-        const centerY = 300;
-        const dx = centerX - player.position.x;
-        const dy = centerY - player.position.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        // Normalize and apply fixed offset
-        const cardX =
-          player.position.x + (dx / distance) * offsetDistance + stackOffsetX;
-        const cardY =
-          player.position.y + (dy / distance) * offsetDistance + stackOffsetY;
+        const pos = this.getCardPosition(
+          { x: player.sprite.x, y: player.sprite.y },
+          cardIndex,
+        );
 
         // Create new card
-        const newCard = this.add.sprite(cardX, cardY, "card-hidden");
+        const newCard = this.add.sprite(pos.x, pos.y, "card-hidden");
         newCard.setDisplaySize(40, 55);
         newCard.setDepth(10 + cardIndex);
 
@@ -568,8 +556,8 @@ export class TavernScene extends Phaser.Scene {
         newCard.setScale(0);
         this.tweens.add({
           targets: newCard,
-          x: cardX,
-          y: cardY,
+          x: pos.x,
+          y: pos.y,
           scale: 1,
           duration: 400,
           ease: "Back.easeOut",
@@ -581,195 +569,263 @@ export class TavernScene extends Phaser.Scene {
     }
   }
 
-  revealAllVotes(persistentVotes: {
-    [storyId: string]: { [playerId: string]: string };
-  }) {
-    console.log("TavernScene.revealAllVotes called:", persistentVotes);
+  revealAllVotes(
+    stories: any[],
+    persistentVotes: { [storyId: string]: { [playerId: string]: string } },
+  ) {
+    console.log("TavernScene.revealAllVotes called:", stories, persistentVotes);
     this.isVotesRevealed = true;
+    this.storiesData = stories;
+    this.votesData = persistentVotes;
+    this.revealStoryIndex = 0;
 
-    // Extract all vote values per player (list of votes for each story they voted on)
-    const playerVotesMap = new Map<string, string[]>();
-    Object.values(persistentVotes).forEach((storyVotes) => {
-      Object.entries(storyVotes).forEach(([playerId, vote]) => {
-        if (!playerVotesMap.has(playerId)) {
-          playerVotesMap.set(playerId, []);
-        }
-        playerVotesMap.get(playerId)!.push(vote);
-      });
-    });
-
-    // Create a dark overlay for dramatic effect
+    // Create a dark overlay
     const overlay = this.add.graphics();
-    overlay.fillStyle(0x000000, 0.7);
+    overlay.fillStyle(0x000000, 0.85);
     overlay.fillRect(0, 0, 800, 600);
     overlay.setDepth(50);
     overlay.setAlpha(0);
 
-    // Fade in overlay
+    const uiGroup = this.add.group();
+    uiGroup.add(overlay);
+    this.revealUI = uiGroup;
+
     this.tweens.add({
       targets: overlay,
       alpha: 1,
       duration: 300,
+    });
+
+    // Create Navigation Arrows
+    if (stories.length > 1) {
+      const leftArrow = this.add
+        .text(50, 300, "◀", {
+          fontSize: "64px",
+          color: "#FFD700",
+          stroke: "#000",
+          strokeThickness: 6,
+        })
+        .setOrigin(0.5)
+        .setDepth(100)
+        .setInteractive({ useHandCursor: true })
+        .on("pointerdown", () => this.navigateReveal(-1));
+
+      const rightArrow = this.add
+        .text(750, 300, "▶", {
+          fontSize: "64px",
+          color: "#FFD700",
+          stroke: "#000",
+          strokeThickness: 6,
+        })
+        .setOrigin(0.5)
+        .setDepth(100)
+        .setInteractive({ useHandCursor: true })
+        .on("pointerdown", () => this.navigateReveal(1));
+
+      uiGroup.add(leftArrow);
+      uiGroup.add(rightArrow);
+
+      // Add hover effects
+      [leftArrow, rightArrow].forEach((arrow) => {
+        arrow.on("pointerover", () => arrow.setScale(1.2));
+        arrow.on("pointerout", () => arrow.setScale(1.0));
+      });
+    }
+
+    // Add close button
+    const closeBtn = this.add
+      .text(760, 40, "✖", {
+        fontSize: "32px",
+        color: "#ffffff",
+      })
+      .setOrigin(0.5)
+      .setDepth(101)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.closeReveal());
+
+    uiGroup.add(closeBtn);
+
+    // Initial render
+    this.updateRevealDisplay();
+  }
+
+  private navigateReveal(direction: number) {
+    const newIndex = this.revealStoryIndex + direction;
+    if (newIndex >= 0 && newIndex < this.storiesData.length) {
+      this.revealStoryIndex = newIndex;
+      this.updateRevealDisplay();
+    }
+  }
+
+  private updateRevealDisplay() {
+    if (!this.revealUI) return;
+
+    const story = this.storiesData[this.revealStoryIndex];
+    if (!story) return;
+
+    // Clean up previous story UI (cards, labels, text)
+    // Extract to array first to avoid iterator issues when destroying
+    const children = [...this.revealUI.getChildren()];
+    children.forEach((child) => {
+      if (child.name === "story-ui") {
+        child.destroy();
+      }
+    });
+
+    const headerY = 80;
+    const centerX = 400;
+
+    // 1. Story Header
+    const jiraText = this.add
+      .text(centerX, headerY, story.jiraKey || "", {
+        fontSize: "24px",
+        color: "#FFD700",
+        fontFamily: "serif",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5, 0.5)
+      .setDepth(100)
+      .setName("story-ui");
+
+    const titleText = this.add
+      .text(centerX, headerY + 40, story.title, {
+        fontSize: "20px",
+        color: "#ffffff",
+        fontFamily: "serif",
+      })
+      .setOrigin(0.5, 0.5)
+      .setDepth(100)
+      .setName("story-ui");
+
+    const progressText = this.add
+      .text(centerX, headerY + 80, `Ticket ${this.revealStoryIndex + 1} of ${this.storiesData.length}`, {
+        fontSize: "14px",
+        color: "#aaaaaa",
+      })
+      .setOrigin(0.5, 0.5)
+      .setDepth(100)
+      .setName("story-ui");
+
+    // Consensus/Average
+    const storyVotes = this.votesData[story.id] || {};
+    const numericVotes = Object.values(storyVotes)
+      .filter((v) => !isNaN(Number(v)))
+      .map(Number);
+    
+    if (numericVotes.length > 0) {
+      const avg = Math.round((numericVotes.reduce((a, b) => a + b, 0) / numericVotes.length) * 10) / 10;
+      const avgText = this.add
+        .text(centerX, 520, `Average Cost: ${avg}`, {
+          fontSize: "28px",
+          color: "#FFD700",
+          fontFamily: "serif",
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5)
+        .setDepth(100)
+        .setName("story-ui");
+      this.revealUI.add(avgText);
+    }
+
+    this.revealUI.add(jiraText);
+    this.revealUI.add(titleText);
+    this.revealUI.add(progressText);
+
+    // 2. Player Votes (Simple Grid Layout)
+    const playersArray = Array.from(this.players.entries());
+    const rowHeight = 60;
+    const colWidth = 180;
+    const rows = 3;
+    const startX = centerX - ((Math.min(playersArray.length, 3) - 1) * colWidth) / 2;
+    const startY = headerY + 140;
+
+    playersArray.forEach(([playerId, player], index) => {
+      const col = index % 3;
+      const row = Math.floor(index / 3);
+      const x = startX + col * colWidth;
+      const y = startY + row * rowHeight;
+      const voteValue = storyVotes[playerId] || "?";
+      
+      // Player Name
+      const nameLabel = this.add
+        .text(x, y, player.data.name, {
+          fontSize: "18px",
+          color: "#FFD700",
+          fontFamily: "serif",
+        })
+        .setOrigin(0.5)
+        .setDepth(100)
+        .setAlpha(0)
+        .setName("story-ui");
+
+      // Vote Value
+      const voteLabel = this.add
+        .text(x, y + 25, voteValue, {
+          fontSize: "24px",
+          color: "#ffffff",
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5)
+        .setDepth(100)
+        .setAlpha(0)
+        .setName("story-ui");
+
+      this.revealUI?.add(nameLabel);
+      this.revealUI?.add(voteLabel);
+
+      // Simple fade-in animation
+      this.tweens.add({
+        targets: [nameLabel, voteLabel],
+        alpha: 1,
+        y: "-=10",
+        duration: 300,
+        delay: index * 50,
+      });
+
+      // Ensure cards stay hidden during reveal carousel
+      player.voteCards.forEach(c => c.setVisible(false));
+    });
+  }
+
+  private closeReveal() {
+    if (!this.revealUI) return;
+
+    this.tweens.add({
+      targets: this.revealUI.getChildren(),
+      alpha: 0,
+      duration: 300,
       onComplete: () => {
-        // Position for reveal display
-        let yPosition = 80;
-        const cardSpacing = 50;
-        const playerSpacing = 90;
-
-        // Keep track of temporary UI elements for cleanup
-        const tempUIElements: Phaser.GameObjects.GameObject[] = [];
-
-        // Convert players map to array and reveal each
-        const playersArray = Array.from(this.players.entries());
-
-        playersArray.forEach(([playerId, player], pIndex) => {
-          // Get all votes for this player (one per story)
-          const playerVotes = playerVotesMap.get(playerId) || [];
-
-          // Create player name header
-          const nameY = yPosition + pIndex * playerSpacing;
-          const playerHeader = this.add
-            .text(100, nameY, `${player.data.name}:`, {
-              fontSize: "20px",
-              color: "#FFD700",
-              fontFamily: "serif",
-              fontStyle: "bold",
-              stroke: "#000000",
-              strokeThickness: 3,
-            })
-            .setOrigin(0, 0.5)
-            .setDepth(100)
-            .setAlpha(0);
-
-          tempUIElements.push(playerHeader);
-
-          // Animate player name in
-          this.tweens.add({
-            targets: playerHeader,
-            alpha: 1,
-            x: 120,
-            duration: 300,
-            delay: pIndex * 200,
-          });
-
-          // Create cards for this player (all their vote cards)
-          player.voteCards.forEach((card, cardIndex) => {
-            const cardX = 250 + cardIndex * cardSpacing;
-            const cardY = nameY;
-
-            // Get the vote value for this specific card (by index)
-            const voteValue = playerVotes[cardIndex] || "?";
-
-            // Move card to reveal position with animation
-            this.tweens.add({
-              targets: card,
-              x: cardX,
-              y: cardY,
-              scale: 1.2,
-              depth: 100 + cardIndex,
-              duration: 400,
-              delay: pIndex * 200 + cardIndex * 100,
-              ease: "Back.easeOut",
-              onComplete: () => {
-                // Flip card
-                this.tweens.add({
-                  targets: card,
-                  scaleX: 0,
-                  duration: 100,
-                  onComplete: () => {
-                    // Change to revealed texture
-                    card.setTexture("card-revealed-bg");
-
-                    // Add vote value text on the card (using voteValue from parent scope)
-                    const voteLabel = this.add
-                      .text(cardX, cardY, voteValue, {
-                        fontSize: "22px",
-                        color: "#333333",
-                        fontFamily: "Arial",
-                        fontStyle: "bold",
-                      })
-                      .setOrigin(0.5)
-                      .setDepth(101 + cardIndex);
-
-                    tempUIElements.push(voteLabel);
-
-                    // Flip back
-                    this.tweens.add({
-                      targets: card,
-                      scaleX: 1.2,
-                      duration: 100,
-                    });
-                  },
-                });
-              },
-            });
-          });
-        });
-
-        // Add "Tap to close" text
-        const closeText = this.add
-          .text(400, 550, "🎉 Votes Revealed! Click anywhere to continue...", {
-            fontSize: "18px",
-            color: "#FFFFFF",
-            fontFamily: "serif",
-          })
-          .setOrigin(0.5)
-          .setDepth(100)
-          .setAlpha(0);
-
-        this.tweens.add({
-          targets: closeText,
-          alpha: 1,
-          duration: 500,
-          delay: playersArray.length * 200 + 500,
-        });
-
-        // Allow click to dismiss
-        this.input.once("pointerdown", () => {
-          // Fade out overlay and clean up
-          this.tweens.add({
-            targets: [overlay, closeText, ...tempUIElements],
-            alpha: 0,
-            duration: 300,
-            onComplete: () => {
-              overlay.destroy();
-              closeText.destroy();
-              tempUIElements.forEach((el) => el.destroy());
-
-              this.isVotesRevealed = false;
-
-              // Return cards to original positions
-              this.players.forEach((player) => {
-                player.voteCards.forEach((card, idx) => {
-                  const centerX = 400;
-                  const centerY = 300;
-                  const cardDistance = 0.55;
-                  const baseCardX =
-                    player.position.x +
-                    (centerX - player.position.x) * cardDistance;
-                  const baseCardY =
-                    player.position.y +
-                    (centerY - player.position.y) * cardDistance;
-                  const offsetX = idx * 10;
-                  const offsetY = -idx * 4;
-
-                  this.tweens.add({
-                    targets: card,
-                    x: baseCardX + offsetX,
-                    y: baseCardY + offsetY,
-                    scale: 1,
-                    depth: 10 + idx,
-                    duration: 300,
-                    onComplete: () => {
-                      card.setTexture("card-hidden");
-                    },
-                  });
-                });
-              });
-            },
-          });
+        this.revealUI?.clear(true, true);
+        this.revealUI = null;
+        this.isVotesRevealed = false;
+        this.players.forEach((player) => {
+          player.voteCards.forEach((c) => c.setVisible(true));
+          this.resetCards(player.id);
         });
       },
+    });
+  }
+  private resetCards(playerId: string) {
+    const player = this.players.get(playerId);
+    if (!player) return;
+
+    player.voteCards.forEach((card, idx) => {
+      const pos = this.getCardPosition(
+        { x: player.sprite.x, y: player.sprite.y },
+        idx,
+      );
+
+      this.tweens.add({
+        targets: card,
+        x: pos.x,
+        y: pos.y,
+        scale: 1,
+        depth: 10 + idx,
+        duration: 300,
+        onComplete: () => {
+          card.setTexture("card-hidden");
+        },
+      });
     });
   }
 
