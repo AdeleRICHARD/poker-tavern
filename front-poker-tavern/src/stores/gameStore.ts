@@ -315,6 +315,13 @@ export const useGameStore = defineStore("game", () => {
     // update from here to avoid redundant updates.
   }
 
+  function resetPhase() {
+    gamePhase.value = GamePhase.VOTING;
+    if (currentSession.value) {
+      currentSession.value.revealVotes = false;
+    }
+  }
+
   function revealVotes() {
     if (!canReveal.value) return;
 
@@ -1367,8 +1374,8 @@ export const useGameStore = defineStore("game", () => {
     deleteRoomUtil,
     connectWebSocket,
     disconnectWebSocket,
-    sendWebSocketMessage,
     importJiraIssues,
     addStoriesToSession,
+    resetPhase,
   };
 });

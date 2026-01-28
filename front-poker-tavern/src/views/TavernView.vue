@@ -167,9 +167,14 @@
 
             <!-- Center Column: Game + Chat -->
             <div class="center-column">
-                <!-- Phaser game area -->
+                <!-- Pixel Art game area -->
                 <div class="game-area">
-                    <div ref="phaserContainer" id="phaser-game"></div>
+                    <PixelTavern 
+                        :players="gameStore.players"
+                        :currentSession="gameStore.currentSession"
+                        :gamePhase="gameStore.gamePhase"
+                        @dismiss-reveal="gameStore.resetPhase()"
+                    />
 
                     <div class="game-status">
                         <div
@@ -305,67 +310,25 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useGameStore, GamePhase } from "@/stores/gameStore";
-import { GameManager } from "@/game/GameManager";
 import JiraImport from "@/components/JiraImport.vue";
 import PokerCards from "@/components/PokerCards.vue";
+import PixelTavern from "@/components/PixelTavern.vue";
 
 // Global store
 const gameStore = useGameStore();
 
 // Vue references
-const phaserContainer = ref<HTMLElement>();
 const sessionIdInput = ref<HTMLInputElement>();
 
 // Local state
-const gameManager = new GameManager();
 const showSummaryModal = ref(false);
 const showCopied = ref(false);
 const selectedIssueForVoting = ref<any>(null);
 
 // Lifecycle
 onMounted(() => {
-    if (phaserContainer.value) {
-        gameManager.init("phaser-game");
-
-        // Always initialize store to load persisted state
-        gameStore.initializeStore();
-
-        // Sync any existing players after delay (including restored ones)
-        setTimeout(() => {
-            if (gameStore.players.length > 0) {
-                console.log(
-                    "Syncing initial players to Phaser:",
-                    gameStore.players.length,
-                );
-                const persistentVotes =
-                    gameStore.currentSession?.persistentVotes || {};
-                gameManager.syncInitialPlayers(
-                    gameStore.players,
-                    persistentVotes,
-                );
-            }
-
-            // If we have a restored current player, make sure it's added to Phaser
-            if (gameStore.currentPlayer && gameStore.currentSession) {
-                console.log(
-                    "Adding restored current player to Phaser:",
-                    gameStore.currentPlayer.id,
-                );
-                gameManager.addPlayer(
-                    gameStore.currentPlayer.id,
-                    gameStore.currentPlayer,
-                );
-
-                // Update vote status if player has voted
-                if (gameStore.currentPlayer.hasVoted) {
-                    gameManager.updatePlayerVote(
-                        gameStore.currentPlayer.id,
-                        true,
-                    );
-                }
-            }
-        }, 500);
-    }
+    // Always initialize store to load persisted state
+    gameStore.initializeStore();
 });
 
 // Add emit to communicate with parent
@@ -378,116 +341,11 @@ function handleLogout() {
     emit("logout");
 }
 
-onUnmounted(() => {
-    gameManager.destroy();
-});
-
-// Watchers to sync with Phaser
-watch(
-    () => gameStore.players,
-    (newPlayers, oldPlayers) => {
-        console.log("Players updated:", newPlayers.length, "players");
-
-        // Sync new players to Phaser scene
-        if (newPlayers.length > 0) {
-            // Clear existing players in Phaser and re-add them
-            if (oldPlayers) {
-                oldPlayers.forEach((player) => {
-                    if (!newPlayers.find((p) => p.id === player.id)) {
-                        console.log("Removing player from Phaser:", player.id);
-                        gameManager.removePlayer(player.id);
-                    }
-                });
-            }
-
-            // Add new players to Phaser
-            newPlayers.forEach((player) => {
-                const wasAlreadyThere = oldPlayers?.find(
-                    (p) => p.id === player.id,
-                );
-                if (!wasAlreadyThere) {
-                    console.log("Adding new player to Phaser:", player.id);
-                    gameManager.addPlayer(player.id, player);
-                }
-            });
-        }
-    },
-    { deep: true },
-);
-
-watch(
-    () => gameStore.gamePhase,
-    (newPhase) => {
-        if (newPhase === GamePhase.REVEALED) {
-            // Global reveal - pass all votes for all stories
-            setTimeout(() => {
-                if (gameStore.currentSession) {
-                    // Pass the full persistentVotes structure (storyId -> playerId -> vote)
-                    gameManager.revealAllVotes(
-                        gameStore.currentSession.persistentVotes,
-                    );
-                }
-            }, 500);
-        } else if (newPhase === GamePhase.VOTING) {
-            gameManager.resetTable();
-        }
-    },
-);
-
-// Watch for vote updates triggered by WebSocket messages
-watch(
-    () => gameStore.voteUpdateTrigger,
-    () => {
-        console.log(
-            "🎯 Vote update triggered in TavernView - updating Phaser UI",
-        );
-        // Update all players' vote cards after a vote is cast via WebSocket
-        gameStore.players.forEach((player) => {
-            // Calculate vote count for this player
-            let voteCount = 0;
-            if (gameStore.currentSession) {
-                for (const storyVotes of Object.values(
-                    gameStore.currentSession.persistentVotes,
-                )) {
-                    if (storyVotes && storyVotes[player.id]) {
-                        voteCount++;
-                    }
-                }
-            }
-            console.log(
-                `Updating player ${player.id} vote status: hasVoted=${player.hasVoted}, voteCount=${voteCount}`,
-            );
-            gameManager.updatePlayerVote(player.id, player.hasVoted, voteCount);
-        });
-    },
-);
-
-// Watch for character changes triggered by WebSocket messages
-watch(
-    () => gameStore.characterUpdateTrigger,
-    () => {
-        console.log("🎭 Character update triggered - updating Phaser sprites");
-        // Re-add all players to Phaser to update their sprites
-        gameStore.players.forEach((player) => {
-            gameManager.addPlayer(player.id, player);
-        });
-    },
-);
+// Watchers (Phaser sync removed, PixelTavern uses props)
 
 // Methods
 function selectCharacter(characterId: string) {
     gameStore.selectCharacter(characterId);
-
-    if (gameStore.currentPlayer) {
-        console.log(
-            "Adding current player to Phaser:",
-            gameStore.currentPlayer.id,
-        );
-        gameManager.addPlayer(
-            gameStore.currentPlayer.id,
-            gameStore.currentPlayer,
-        );
-    }
 }
 
 function selectCard(cardValue: string) {
@@ -511,29 +369,6 @@ function getPlayerVoteCount(playerId: string): number {
 function submitVote() {
     console.log("Submitting vote for current player");
     gameStore.submitVote();
-
-    if (gameStore.currentPlayer) {
-        const voteCount = getPlayerVoteCount(gameStore.currentPlayer.id);
-        console.log(
-            "Updating player vote in Phaser:",
-            gameStore.currentPlayer.id,
-            "voteCount:",
-            voteCount,
-        );
-        gameManager.updatePlayerVote(
-            gameStore.currentPlayer.id,
-            true,
-            voteCount,
-        );
-
-        // Update other players' vote cards (skip current player to avoid double call)
-        gameStore.players.forEach((player) => {
-            if (player.hasVoted && player.id !== gameStore.currentPlayer?.id) {
-                const playerVoteCount = getPlayerVoteCount(player.id);
-                gameManager.updatePlayerVote(player.id, true, playerVoteCount);
-            }
-        });
-    }
 }
 
 function getCompletedStoriesCount(): number {
@@ -614,8 +449,6 @@ function makeOthersVote() {
             if (player) {
                 player.hasVoted = true;
                 player.vote = randomVote;
-                const voteCount = getPlayerVoteCount(player.id);
-                gameManager.updatePlayerVote(player.id, true, voteCount);
             }
         }
     });
@@ -631,101 +464,7 @@ function makeOthersVote() {
     });
 }
 
-// Helper functions for the new UI
-function getTotalVotesCount(): number {
-    if (!gameStore.currentSession) return 0;
-    let totalVotes = 0;
-    gameStore.currentSession.stories.forEach((story) => {
-        const storyVotes =
-            gameStore.currentSession!.persistentVotes[story.id] || {};
-        totalVotes += Object.keys(storyVotes).length;
-    });
-    return totalVotes;
-}
-
-function getTotalRequiredVotes(): number {
-    if (!gameStore.currentSession) return 0;
-    return (
-        gameStore.currentSession.stories.length *
-        gameStore.currentSession.requiredPlayers.length
-    );
-}
-
-function getGlobalVotingProgress(): number {
-    const total = getTotalRequiredVotes();
-    const voted = getTotalVotesCount();
-    return total > 0 ? (voted / total) * 100 : 0;
-}
-
-function hasPlayerVoted(playerId: string): boolean {
-    if (!gameStore.currentSession || !gameStore.currentStory) return false;
-    const currentStoryVotes =
-        gameStore.currentSession.persistentVotes[gameStore.currentStory.id] ||
-        {};
-    return !!currentStoryVotes[playerId];
-}
-
-function getPlayerInfo(playerId: string) {
-    const player = gameStore.players.find((p) => p.id === playerId);
-    return player || { name: playerId, emoji: "👤" };
-}
-
-function getVoteTime(playerId: string): string {
-    // Placeholder for vote timestamp - would come from backend in real implementation
-    return "Voted recently";
-}
-
-function revealAllVotes() {
-    console.log("Revealing all votes globally");
-    gameStore.revealVotes();
-}
-
-function selectSessionId() {
-    sessionIdInput.value?.select();
-}
-
-function copySessionId() {
-    if (gameStore.currentSession?.id) {
-        // Create invite link with session ID as URL parameter
-        const baseUrl = window.location.origin;
-        const inviteLink = `${baseUrl}/?sessionId=${gameStore.currentSession.id}`;
-
-        navigator.clipboard
-            .writeText(inviteLink)
-            .then(() => {
-                showCopied.value = true;
-                setTimeout(() => (showCopied.value = false), 2000);
-            })
-            .catch((err) => {
-                console.error("Failed to copy:", err);
-            });
-    }
-}
-
-// Helper functions for stories overview
-function isStoryRevealed(storyId: string): boolean {
-    if (!gameStore.currentSession) return false;
-    const storyVotes = gameStore.currentSession.persistentVotes[storyId] || {};
-    const requiredPlayers = gameStore.currentSession.requiredPlayers;
-    return requiredPlayers.every((playerId) => storyVotes[playerId]);
-}
-
-function isStoryReady(storyId: string): boolean {
-    return isStoryRevealed(storyId); // Same logic for now
-}
-
-function hasVotedOnStory(storyId: string): boolean {
-    if (!gameStore.currentSession || !gameStore.currentPlayer) return false;
-    const storyVotes = gameStore.currentSession.persistentVotes[storyId] || {};
-    return !!storyVotes[gameStore.currentPlayer.id];
-}
-
-function getStoryVotesCount(storyId: string): number {
-    if (!gameStore.currentSession) return 0;
-    const storyVotes = gameStore.currentSession.persistentVotes[storyId] || {};
-    return Object.keys(storyVotes).length;
-}
-
+// Helper functions used in template
 function getPhaseText(phase: string): string {
     const phases = {
         waiting: "⏳ Waiting",
@@ -735,6 +474,41 @@ function getPhaseText(phase: string): string {
     };
     return phases[phase as keyof typeof phases] || phase;
 }
+
+function copySessionId() {
+    if (gameStore.currentSession?.id) {
+        const baseUrl = window.location.origin;
+        const inviteLink = `${baseUrl}/?sessionId=${gameStore.currentSession.id}`;
+        navigator.clipboard.writeText(inviteLink).then(() => {
+            showCopied.value = true;
+            setTimeout(() => (showCopied.value = false), 2000);
+        });
+    }
+}
+
+function hasVotedOnStory(storyId: string): boolean {
+    if (!gameStore.currentSession || !gameStore.currentPlayer) return false;
+    const storyVotes = gameStore.currentSession.persistentVotes[storyId] || {};
+    return !!storyVotes[gameStore.currentPlayer.id];
+}
+
+function isStoryRevealed(storyId: string): boolean {
+    if (!gameStore.currentSession) return false;
+    const storyVotes = gameStore.currentSession.persistentVotes[storyId] || {};
+    const requiredPlayers = gameStore.currentSession.requiredPlayers;
+    return requiredPlayers.length > 0 && requiredPlayers.every((playerId) => storyVotes[playerId]);
+}
+
+function getStoryVotesCount(storyId: string): number {
+    if (!gameStore.currentSession) return 0;
+    const storyVotes = gameStore.currentSession.persistentVotes[storyId] || {};
+    return Object.keys(storyVotes).length;
+}
+
+function revealAllVotes() {
+    gameStore.revealVotes();
+}
+
 
 // Issue selection handler
 function onIssueSelected(issue: any) {
