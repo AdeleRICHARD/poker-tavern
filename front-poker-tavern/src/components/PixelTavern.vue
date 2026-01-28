@@ -179,9 +179,10 @@ function getCharacterEmoji(characterId: string) {
 }
 
 function getSeatStyle(index: number, total: number) {
-  const angle = (index / total) * 360;
-  const radiusX = 40; // Horizontal radius
-  const radiusY = 25; // Vertical radius (elliptical for perspective)
+  const angle = (index / total) * 360 + 90; // Start from bottom
+    
+  const radiusX = 35; 
+  const radiusY = 22; 
   
   const rad = (angle * Math.PI) / 180;
   const left = 50 + Math.cos(rad) * radiusX;
@@ -462,12 +463,12 @@ function prevSlide() {
   background: #2c1a12;
   border: 4px solid #8b6914;
   border-radius: 20px;
-  width: 90%;
-  max-width: 800px;
-  height: 85%;
+  width: 95%;
+  max-width: 1200px;
+  height: 90%;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 0 60px rgba(0,0,0,0.8);
+  box-shadow: 0 0 80px rgba(0,0,0,1);
   overflow: hidden;
 }
 

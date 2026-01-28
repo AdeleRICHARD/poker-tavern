@@ -310,9 +310,23 @@ export const useGameStore = defineStore("game", () => {
     // Send vote to backend via WebSocket
     sendWebSocketMessage(voteMessage);
 
-    // The backend will broadcast the vote, and the local state will be updated
-    // by the handleVoteCast message handler. We can remove the local state
-    // update from here to avoid redundant updates.
+    // Immediate local update for better UX (feedback instantané)
+    if (currentPlayer.value) {
+      currentPlayer.value.hasVoted = true;
+      currentPlayer.value.vote = selectedCard.value;
+      
+      // Update persistent votes locally too
+      if (!currentSession.value.persistentVotes[currentStory.value.id]) {
+        currentSession.value.persistentVotes[currentStory.value.id] = {};
+      }
+      currentSession.value.persistentVotes[currentStory.value.id][currentPlayer.value.id] = selectedCard.value;
+      
+      updatePlayerVotedStatus();
+      savePersistedState();
+    }
+    
+    // Reset selected card after successful submission
+    selectedCard.value = null;
   }
 
   function resetPhase() {
