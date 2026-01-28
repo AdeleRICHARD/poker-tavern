@@ -172,7 +172,7 @@
                 </div>
             </div>
 
-            <!-- Center Column: Game + Chat -->
+            <!-- Center Column: Game Area -->
             <div class="center-column">
                 <!-- Pixel Art game area -->
                 <div class="game-area">
@@ -577,7 +577,7 @@ function onIssueSelected(issue: any) {
     padding-right: 0.5rem;
 }
 
-/* Center Column: Game + Chat */
+/* Center Column: Game Area */
 .center-column {
     display: flex;
     flex-direction: column;
@@ -1635,50 +1635,6 @@ function onIssueSelected(issue: any) {
     border-color: #27ae60;
 }
 
-/* Chat input and send button (remaining) */
-.chat-input {
-    display: flex;
-    gap: 0.5rem;
-}
-
-.chat-input-field {
-    flex: 1;
-    padding: 0.75rem;
-    border: 2px solid #7f8c8d;
-    border-radius: 8px;
-    background: rgba(52, 73, 94, 0.8);
-    color: white;
-    font-size: 0.9rem;
-}
-
-.chat-input-field:focus {
-    outline: none;
-    border-color: #3498db;
-}
-
-.chat-input-field::placeholder {
-    color: #95a5a6;
-}
-
-.send-btn {
-    padding: 0.75rem;
-    background: linear-gradient(145deg, #27ae60, #229954);
-    border: 2px solid #2ecc71;
-    border-radius: 8px;
-    color: white;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.send-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(46, 204, 113, 0.3);
-}
-
-.send-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
 
 /* Responsive */
 /* Issues section in left sidebar */
@@ -1842,8 +1798,7 @@ function onIssueSelected(issue: any) {
         gap: 1rem;
     }
 
-    .control-panel,
-    .chat-panel {
+    .control-panel {
         max-height: 300px;
     }
 }
