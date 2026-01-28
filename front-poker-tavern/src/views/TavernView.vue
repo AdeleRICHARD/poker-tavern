@@ -133,15 +133,15 @@
 
                 <!-- Admin Controls (moved from right sidebar) -->
                 <div v-if="gameStore.currentSession" class="game-controls-left">
+                    <!-- Improved Reveal Button -->
                     <button
-                        v-if="
-                            gameStore.canReveal &&
-                            !gameStore.isCurrentStoryRevealed
-                        "
+                        v-if="gameStore.currentSession && !gameStore.isCurrentStoryRevealed"
                         class="wow-button reveal-btn"
+                        :disabled="!gameStore.canReveal"
                         @click="revealAllVotes"
+                        :title="!gameStore.canReveal ? 'All players must vote on ALL tickets before revealing' : 'Reveal all votes for the session'"
                     >
-                        🎭 Reveal All Votes
+                        {{ !gameStore.canReveal ? '⏳ Waiting for votes...' : '🎭 Reveal All Votes' }}
                     </button>
 
                     <button
@@ -1834,5 +1834,13 @@ function onIssueSelected(issue: any) {
     .chat-panel {
         max-height: 300px;
     }
+}
+.reveal-btn:disabled {
+    background: linear-gradient(to bottom, #7f8c8d, #3c3c3c);
+    border-color: #95a5a6;
+    cursor: not-allowed;
+    opacity: 0.7;
+    transform: none;
+    box-shadow: none;
 }
 </style>
