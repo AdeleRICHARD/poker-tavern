@@ -113,6 +113,13 @@
                                 {{ story.title }}
                             </div>
                             <div class="issue-status-left">
+                                <button 
+                                    class="view-btn-mini" 
+                                    @click.stop="viewIssueDetails(story)"
+                                    title="View ticket details"
+                                >
+                                    👁️
+                                </button>
                                 <span
                                     v-if="hasVotedOnStory(story.id)"
                                     class="voted-badge-mini"
@@ -304,6 +311,13 @@
                 </div>
             </div>
         </div>
+
+        <!-- Issue Details Modal -->
+        <JiraIssueModal
+            ref="issueDetailModal"
+            :issue="viewingIssue"
+            mode="view"
+        />
     </div>
 </template>
 
@@ -313,6 +327,7 @@ import { useGameStore, GamePhase } from "@/stores/gameStore";
 import JiraImport from "@/components/JiraImport.vue";
 import PokerCards from "@/components/PokerCards.vue";
 import PixelTavern from "@/components/PixelTavern.vue";
+import JiraIssueModal from "@/components/JiraIssueModal.vue";
 
 // Global store
 const gameStore = useGameStore();
@@ -324,6 +339,15 @@ const sessionIdInput = ref<HTMLInputElement>();
 const showSummaryModal = ref(false);
 const showCopied = ref(false);
 const selectedIssueForVoting = ref<any>(null);
+const viewingIssue = ref<any>(null);
+const issueDetailModal = ref<InstanceType<typeof JiraIssueModal>>();
+
+// Methods
+async function viewIssueDetails(story: any) {
+    viewingIssue.value = story;
+    await nextTick();
+    issueDetailModal.value?.openModal();
+}
 
 // Lifecycle
 onMounted(() => {
@@ -1842,5 +1866,27 @@ function onIssueSelected(issue: any) {
     opacity: 0.7;
     transform: none;
     box-shadow: none;
+}
+
+.view-btn-mini {
+    background: rgba(139, 105, 20, 0.2);
+    border: 1px solid rgba(218, 165, 32, 0.3);
+    color: #daa520;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.view-btn-mini:hover {
+    background: rgba(218, 165, 32, 0.3);
+    border-color: #daa520;
+    color: #fff;
+    transform: scale(1.1);
 }
 </style>
