@@ -17,7 +17,6 @@ export interface Player {
   emoji: string;
   hasVoted: boolean;
   vote?: string;
-  position: { x: number; y: number };
   isReady: boolean;
 }
 
@@ -29,20 +28,12 @@ export interface Story {
   estimatedPoints?: number;
 }
 
-export interface ChatMessage {
-  id: string;
-  author: string;
-  text: string;
-  timestamp: Date;
-  type: "message" | "system";
-}
 
 export interface GameSession {
   id: string;
   name: string;
   createdAt: Date;
   isActive: boolean;
-  currentStoryIndex: number;
   stories: Story[];
   revealVotes: boolean;
   persistentVotes: { [storyId: string]: { [playerId: string]: string } };
@@ -64,14 +55,12 @@ export const useGameStore = defineStore("game", () => {
   const currentPlayer = ref<Player | null>(null);
   const players = ref<Player[]>([]);
   const currentSession = ref<GameSession | null>(null);
-  const chatMessages = ref<ChatMessage[]>([]);
-  const selectedCard = ref<string | null>(null);
-  const gamePhase = ref<GamePhase>(GamePhase.WAITING);
   const isConnected = ref(false);
   const localPlayerId = ref<string | null>(null);
   const localStoryIndex = ref(0); // Independent story navigation
   const wsConnection = ref<WebSocket | null>(null);
-  const voteUpdateTrigger = ref(0); // Trigger for Phaser vote updates
+  const selectedCard = ref<string | null>(null);
+  const gamePhase = ref<GamePhase>(GamePhase.WAITING);
 
   // Mock data for testing
   const availableCharacters = ref([
@@ -195,12 +184,10 @@ export const useGameStore = defineStore("game", () => {
     return Math.round((sum / numericVotes.length) * 10) / 10;
   });
 
-  // Actions
   function initializeStore() {
     // Initialize empty state - will be populated by backend
     currentSession.value = null;
     players.value = [];
-    chatMessages.value = [];
     gamePhase.value = GamePhase.WAITING;
     localStoryIndex.value = 0;
 
@@ -250,14 +237,12 @@ export const useGameStore = defineStore("game", () => {
         });
       }
     } else {
-      // Create new player
       currentPlayer.value = {
         id: localPlayerId.value,
         name: "You", // To be replaced with real name
         character: character.id,
         emoji: character.emoji,
         hasVoted: hasCurrentPlayerVoted(),
-        position: { x: 400, y: 400 }, // Default position
         isReady: true,
       };
     }
@@ -343,12 +328,6 @@ export const useGameStore = defineStore("game", () => {
     if (currentSession.value) {
       currentSession.value.revealVotes = true;
     }
-
-    addChatMessage({
-      author: "System",
-      text: "All votes revealed for all stories!",
-      type: "system",
-    });
   }
 
   function navigateToStory(storyIndex: number) {
@@ -386,12 +365,6 @@ export const useGameStore = defineStore("game", () => {
     if (allStoriesVotedByEveryone.value && currentSession.value.revealVotes) {
       gamePhase.value = GamePhase.REVEALED;
     }
-
-    addChatMessage({
-      author: "System",
-      text: `Navigated to: ${currentStory.value?.title}`,
-      type: "system",
-    });
   }
 
   function nextStory() {
@@ -406,28 +379,10 @@ export const useGameStore = defineStore("game", () => {
     }
   }
 
-  function addChatMessage(message: Omit<ChatMessage, "id" | "timestamp">) {
-    chatMessages.value.push({
-      id: `msg-${Date.now()}`,
-      timestamp: new Date(),
-      ...message,
-    });
-  }
-
-  function sendChatMessage(text: string) {
-    if (!currentPlayer.value || !text.trim()) return;
-
-    addChatMessage({
-      author: currentPlayer.value.name,
-      text: text.trim(),
-      type: "message",
-    });
-  }
 
   function resetGame() {
     players.value = [];
     currentSession.value = null;
-    chatMessages.value = [];
     selectedCard.value = null;
     gamePhase.value = GamePhase.WAITING;
     currentPlayer.value = null;
@@ -474,7 +429,6 @@ export const useGameStore = defineStore("game", () => {
         name: parsed.sessionName,
         createdAt: new Date(),
         isActive: true,
-        currentStoryIndex: 0,
         stories: parsed.stories || [],
         revealVotes: false,
         persistentVotes: parsed.persistentVotes || {},
@@ -596,18 +550,6 @@ export const useGameStore = defineStore("game", () => {
       localStoryIndex.value = 0;
     }
 
-    addChatMessage({
-      author: "System",
-      text: `Connected to session ${currentSession.value.name}`,
-      type: "system",
-    });
-
-    // Save the current state to localStorage for this user
-    savePersistedState();
-
-    // Establish WebSocket connection
-    connectWebSocket(sessionId);
-
     console.log("✅ Connected to session:", sessionId);
   }
 
@@ -619,12 +561,6 @@ export const useGameStore = defineStore("game", () => {
 
     // Only clear local connection state, preserve room data for reconnection
     // The session data stays in localStorage so user can rejoin later
-
-    addChatMessage({
-      author: "System",
-      text: "Disconnected from session (room data preserved)",
-      type: "system",
-    });
 
     console.log("Disconnected from backend");
   }
@@ -653,13 +589,11 @@ export const useGameStore = defineStore("game", () => {
       const sessionData = await joinResponse.json();
       console.log("Joined session data:", sessionData);
 
-      // Create local session object with backend data
       currentSession.value = {
         id: sessionData.sessionId,
         name: sessionData.name,
         createdAt: new Date(sessionData.createdAt || Date.now()),
         isActive: true,
-        currentStoryIndex: 0,
         stories: sessionData.stories || [],
         revealVotes: false,
         persistentVotes: sessionData.persistentVotes || {},
@@ -674,7 +608,6 @@ export const useGameStore = defineStore("game", () => {
           character: "mage",
           emoji: "🧙‍♂️",
           hasVoted: false,
-          position: { x: 400, y: 400 },
           isReady: true,
         }));
 
@@ -737,13 +670,11 @@ export const useGameStore = defineStore("game", () => {
       const sessionData = await response.json();
       console.log("Backend response:", sessionData);
 
-      // Create local session object with backend data
       currentSession.value = {
         id: sessionData.sessionId,
         name: sessionData.name,
         createdAt: new Date(),
         isActive: true,
-        currentStoryIndex: 0,
         stories: stories,
         revealVotes: false,
         persistentVotes: sessionData.persistentVotes || {},
@@ -772,10 +703,6 @@ export const useGameStore = defineStore("game", () => {
     }
   }
 
-  function authenticatePlayer(credentials: any) {
-    // TODO: Authenticate with backend
-    console.log("TODO: Authenticate player", credentials);
-  }
 
   // Function to add stories directly to session (used for OAuth-based JIRA integration)
   function addStoriesToSession(stories: Story[]) {
@@ -794,13 +721,6 @@ export const useGameStore = defineStore("game", () => {
 
     // Save updated state
     savePersistedState();
-
-    // Add system message
-    addChatMessage({
-      author: "System",
-      text: `Added ${stories.length} stories to session`,
-      type: "system",
-    });
 
     console.log(`Added ${stories.length} stories to session`);
   }
@@ -856,20 +776,9 @@ export const useGameStore = defineStore("game", () => {
         savePersistedState();
       }
 
-      addChatMessage({
-        author: "System",
-        text: `Successfully imported ${result.imported} JIRA issues`,
-        type: "system",
-      });
-
       return result;
     } catch (error) {
       console.error("Error importing JIRA issues:", error);
-      addChatMessage({
-        author: "System",
-        text: `Failed to import JIRA issues: ${error instanceof Error ? error.message : "Unknown error"}`,
-        type: "system",
-      });
       throw error;
     }
   }
@@ -881,11 +790,7 @@ export const useGameStore = defineStore("game", () => {
     localStorage.removeItem("localPlayerId");
     localStorage.removeItem("planningPokerState");
 
-    addChatMessage({
-      author: "System",
-      text: "Logged out successfully",
-      type: "system",
-    });
+    console.log("Logged out successfully");
   }
 
   // WebSocket functions
@@ -901,11 +806,6 @@ export const useGameStore = defineStore("game", () => {
 
     wsConnection.value.onopen = () => {
       console.log("✅ WebSocket connected");
-      addChatMessage({
-        author: "System",
-        text: "Real-time connection established",
-        type: "system",
-      });
     };
 
     wsConnection.value.onmessage = (event) => {
@@ -919,20 +819,10 @@ export const useGameStore = defineStore("game", () => {
 
     wsConnection.value.onclose = () => {
       console.log("WebSocket disconnected");
-      addChatMessage({
-        author: "System",
-        text: "Real-time connection lost",
-        type: "system",
-      });
     };
 
     wsConnection.value.onerror = (error) => {
       console.error("WebSocket error:", error);
-      addChatMessage({
-        author: "System",
-        text: "Connection error occurred",
-        type: "system",
-      });
     };
   }
 
@@ -964,9 +854,6 @@ export const useGameStore = defineStore("game", () => {
       case "votes_revealed":
         handleVotesRevealed(message);
         break;
-      case "chat_message":
-        handleChatMessage(message);
-        break;
       case "stories_imported":
         handleStoriesImported(message);
         break;
@@ -992,7 +879,6 @@ export const useGameStore = defineStore("game", () => {
         character: "mage",
         emoji: "🧙‍♂️",
         hasVoted: false,
-        position: { x: 400, y: 400 },
         isReady: true,
       }));
 
@@ -1052,13 +938,6 @@ export const useGameStore = defineStore("game", () => {
         }
       }
 
-      // Add system message
-      addChatMessage({
-        author: "System",
-        text: `Player joined the tavern`,
-        type: "system",
-      });
-
       // Save updated state
       savePersistedState();
     }
@@ -1078,7 +957,6 @@ export const useGameStore = defineStore("game", () => {
         character: "mage",
         emoji: "🧙‍♂️",
         hasVoted: false,
-        position: { x: 400, y: 400 },
         isReady: true,
       }));
 
@@ -1101,13 +979,6 @@ export const useGameStore = defineStore("game", () => {
         currentSession.value.requiredPlayers = sessionPlayers;
       }
 
-      // Add system message
-      addChatMessage({
-        author: "System",
-        text: `${playerName} left the tavern`,
-        type: "system",
-      });
-
       // Save updated state
       savePersistedState();
     }
@@ -1126,7 +997,6 @@ export const useGameStore = defineStore("game", () => {
         character: "mage",
         emoji: "🧙‍♂️",
         hasVoted: false,
-        position: { x: 400, y: 400 },
         isReady: true,
       }));
 
@@ -1189,15 +1059,8 @@ export const useGameStore = defineStore("game", () => {
       // Save updated state
       savePersistedState();
 
-      // Add system message
-      addChatMessage({
-        author: "System",
-        text: `${playerName} cast their vote`,
-        type: "system",
-      });
-
-      // Trigger UI update in Phaser
-      voteUpdateTrigger.value++;
+      // Save updated state
+      savePersistedState();
     }
   }
 
@@ -1213,28 +1076,9 @@ export const useGameStore = defineStore("game", () => {
       if (currentSession.value) {
         currentSession.value.revealVotes = true;
       }
-
-      // Add system message
-      addChatMessage({
-        author: "System",
-        text: "All votes have been revealed!",
-        type: "system",
-      });
     }
   }
 
-  function handleChatMessage(message: Record<string, unknown>) {
-    const author = message.author as string;
-    const text = message.text as string;
-
-    if (author && text) {
-      addChatMessage({
-        author: author,
-        text: text,
-        type: "message",
-      });
-    }
-  }
 
   function handleStoriesImported(message: Record<string, unknown>) {
     const importedStories = message.stories as Story[];
@@ -1253,13 +1097,6 @@ export const useGameStore = defineStore("game", () => {
 
       // Save updated state
       savePersistedState();
-
-      // Add system message
-      addChatMessage({
-        author: "System",
-        text: `${importedStories.length} JIRA stories imported to session`,
-        type: "system",
-      });
     }
   }
 
@@ -1291,13 +1128,6 @@ export const useGameStore = defineStore("game", () => {
 
         // Trigger UI update in Phaser
         characterUpdateTrigger.value++;
-
-        // Add system message
-        addChatMessage({
-          author: "System",
-          text: `${playerName} changed to ${character}`,
-          type: "system",
-        });
 
         // Save updated state
         savePersistedState();
@@ -1339,14 +1169,12 @@ export const useGameStore = defineStore("game", () => {
     currentPlayer,
     players,
     currentSession,
-    chatMessages,
     selectedCard,
     gamePhase,
     isConnected,
     availableCharacters,
     pokerCards,
     localStoryIndex,
-    voteUpdateTrigger,
 
     // Computed
     currentStory,
@@ -1370,14 +1198,11 @@ export const useGameStore = defineStore("game", () => {
     navigateToStory,
     nextStory,
     previousStory,
-    addChatMessage,
-    sendChatMessage,
     resetGame,
     connectToSession,
     disconnectFromSession,
     joinSession,
     createSession,
-    authenticatePlayer,
     logout,
     savePersistedState,
     loadPersistedState,

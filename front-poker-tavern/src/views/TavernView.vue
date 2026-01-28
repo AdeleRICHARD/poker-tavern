@@ -481,11 +481,6 @@ function makeOthersVote() {
     gameStore.savePersistedState();
     gameStore.updatePlayerVotedStatus();
 
-    gameStore.addChatMessage({
-        author: "System",
-        text: "Other players voted automatically (test mode)",
-        type: "system",
-    });
 }
 
 // Helper functions used in template
@@ -493,7 +488,6 @@ function getPhaseText(phase: string): string {
     const phases = {
         waiting: "⏳ Waiting",
         voting: "🗳️ Voting in progress",
-        discussion: "💬 Discussion",
         revealed: "🎭 Votes revealed",
     };
     return phases[phase as keyof typeof phases] || phase;
@@ -550,12 +544,6 @@ function onIssueSelected(issue: any) {
         }
     }
 
-    // Add a chat message about the selection
-    gameStore.addChatMessage({
-        author: "System",
-        text: `Issue selected for voting: ${issue.title}`,
-        type: "system",
-    });
 }
 </script>
 
