@@ -2,32 +2,59 @@
   <div class="pixel-tavern">
     <div class="tavern-background">
       <div class="floor-planks"></div>
-      <div class="wall-torches">
-        <div class="torch left">🔥</div>
-        <div class="torch right">🔥</div>
-      </div>
       
       <div class="title-banner">
         ⚔️ PLANNING POKER TAVERN ⚔️
       </div>
 
-      <!-- Table and Players Container -->
-      <div class="table-container">
-        <div class="round-table">
-          <div class="table-surface"></div>
+      <!-- Tavern Scene -->
+      <div class="table-area">
+        <!-- Tables and Stools -->
+        <div class="big-table-container">
+          <!-- Mass Shadow -->
+          <div class="table-shadow"></div>
+          
+          <!-- The Wooden Table -->
+          <div class="tavern-table">
+            <!-- Wood grain rings -->
+            <div class="table-grain-outer"></div>
+            <div class="table-grain-inner"></div>
+            
+            <!-- Table Decor (Candle/Glow) -->
+            <div class="table-center-decor">
+              <div class="candle-glow"></div>
+              <div class="candle-stick"></div>
+            </div>
+
+            <!-- Predefined Stools -->
+            <div 
+              v-for="(seat, i) in FIXED_SEATS" 
+              :key="i"
+              class="stool"
+              :style="{ 
+                left: `${((seat.x - 50) * 4) + 160}px`, 
+                top: `${((seat.y - 55) * 4) + 160}px` 
+              }"
+            >
+              <div class="stool-rim"></div>
+            </div>
+          </div>
         </div>
 
-        <!-- Players seated around the table -->
+        <!-- Players seated at seats -->
         <div 
           v-for="(player, index) in allPlayers" 
           :key="player.id"
           class="player-seat"
-          :style="getSeatStyle(index, allPlayers.length)"
+          :style="getSeatStyle(index)"
         >
-          <div class="player-token" :class="player.character">
+          <!-- Aura for current player -->
+          <div v-if="player.id === gameStore.currentPlayer?.id" class="me-aura"></div>
+
+          <div class="player-token" :class="[player.character, { 'is-me': player.id === gameStore.currentPlayer?.id }]">
             <div class="token-rim"></div>
             <div class="token-center">
-              <span class="char-emoji">{{ getCharacterEmoji(player.character) }}</span>
+              <span class="char-emoji animate-float">{{ getCharacterEmoji(player.character) }}</span>
             </div>
             
             <transition name="pop-in">
@@ -35,9 +62,9 @@
               <div v-else class="status-badge waiting">⏳</div>
             </transition>
           </div>
-          <div class="player-name" :class="{ 'is-me': player.id === gameStore.currentPlayer?.id }">
-            {{ player.name }}
-            <span v-if="player.id === gameStore.currentPlayer?.id" class="me-tag">(You)</span>
+          
+          <div class="player-label" :class="{ 'is-me': player.id === gameStore.currentPlayer?.id }">
+            {{ player.id === gameStore.currentPlayer?.id ? 'VOUS' : player.name }}
           </div>
 
           <!-- Vote Cards stack -->
@@ -160,9 +187,19 @@ watch(isRevealed, (val) => {
   if (val) currentSlide.value = gameStore.localStoryIndex;
 });
 
+// Fixed seat positions from user snippet
+const FIXED_SEATS = [
+  { id: 'seat-1', x: 50, y: 37 }, // Haut
+  { id: 'seat-2', x: 65, y: 47 }, // Haut Droite
+  { id: 'seat-3', x: 62, y: 67 }, // Bas Droite
+  { id: 'seat-4', x: 38, y: 67 }, // Bas Gauche
+  { id: 'seat-5', x: 35, y: 47 }, // Haut Gauche
+];
+
 const allPlayers = computed(() => {
-  // Sort players to have a stable seating arrangement
-  return [...props.players].sort((a, b) => a.id.localeCompare(b.id));
+  // Stability: Sort by ID
+  const players = [...props.players].sort((a, b) => a.id.localeCompare(b.id));
+  return players;
 });
 
 const currentStory = computed(() => {
@@ -178,20 +215,15 @@ function getCharacterEmoji(characterId: string) {
   return chars[characterId] || '👤';
 }
 
-function getSeatStyle(index: number, total: number) {
-  const angle = (index / total) * 360 + 90; // Start from bottom
-    
-  const radiusX = 35; 
-  const radiusY = 22; 
+function getSeatStyle(index: number) {
+  // Use fixed seats, loop if more than 5 players
+  const seat = FIXED_SEATS[index % FIXED_SEATS.length];
   
-  const rad = (angle * Math.PI) / 180;
-  const left = 50 + Math.cos(rad) * radiusX;
-  const top = 55 + Math.sin(rad) * radiusY;
-
   return {
-    left: `${left}%`,
-    top: `${top}%`,
-    zIndex: Math.floor(top * 10)
+    left: `${seat.x}%`,
+    top: `${seat.y}%`,
+    transform: 'translate(-50%, -50%)',
+    zIndex: Math.floor(seat.y * 10)
   };
 }
 
@@ -242,7 +274,7 @@ function prevSlide() {
   min-height: 500px;
   position: relative;
   overflow: hidden;
-  background: #1a0f0a;
+  background: #0a0705;
   user-select: none;
   border-radius: 12px;
 }
@@ -250,16 +282,16 @@ function prevSlide() {
 .tavern-background {
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at 50% 50%, #3d2a1a 0%, #1a0f0a 100%);
+  background: #110906;
   position: relative;
 }
 
 .floor-planks {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background-image: linear-gradient(#2d1f15 38px, #1a0f0a 38px, #1a0f0a 40px);
-  background-size: 100% 40px;
-  opacity: 0.3;
+  background-image: repeating-linear-gradient(0deg, #3d2a1a 0px, #3d2a1a 40px, #000 41px, #000 42px);
+  background-size: 100% 84px;
+  opacity: 0.1;
 }
 
 .title-banner {
@@ -267,159 +299,214 @@ function prevSlide() {
   top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  color: #d4a756;
+  color: #f1c40f;
   font-size: 1.2rem;
-  font-weight: bold;
+  font-weight: 900;
   text-shadow: 2px 2px 0 #000;
   white-space: nowrap;
   z-index: 10;
-  letter-spacing: 2px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
 }
 
-.wall-torches {
+.table-area {
   position: absolute;
-  top: 20%;
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  padding: 0 60px;
+  top: 0; left: 0; width: 100%; height: 100%;
 }
 
-.torch {
-  font-size: 1.8rem;
-  animation: flicker 0.15s infinite alternate;
+.big-table-container {
+  position: absolute;
+  top: 55%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
-@keyframes flicker {
-  from { transform: scale(1) translateY(0); filter: drop-shadow(0 0 5px orange); }
-  to { transform: scale(1.1) translateY(-2px); filter: drop-shadow(0 0 20px red); }
-}
-
-.table-container {
+.table-shadow {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
-  width: 100%;
-  height: 100%;
+  transform: translate(-50%, -30%);
+  width: 400px;
+  height: 200px;
+  background: rgba(0,0,0,0.6);
+  filter: blur(60px);
+  border-radius: 50%;
+}
+
+.tavern-table {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  background: #3d2b1f;
+  border: 12px solid #251810;
+  border-radius: 50%;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.8);
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 20;
 }
 
-.round-table {
-  width: 380px;
-  height: 240px;
-  background: #2c1a12;
-  border-radius: 50%;
-  border: 8px solid #8b6914;
-  box-shadow: 
-    0 12px 0 #1a0f0a,
-    inset 0 0 50px rgba(0,0,0,0.8);
-  position: relative;
-  transition: all 0.3s ease;
-}
-
-.table-surface {
+.table-grain-outer {
   position: absolute;
-  top: 10%; left: 10%; right: 10%; bottom: 10%;
-  background: #3e2723;
+  top: 16px; left: 16px; right: 16px; bottom: 16px;
+  border: 2px solid rgba(212,167,86,0.1);
   border-radius: 50%;
-  border: 3px solid #4e342e;
+}
+
+.table-grain-inner {
+  position: absolute;
+  top: 48px; left: 48px; right: 48px; bottom: 48px;
+  border: 1px solid rgba(212,167,86,0.1);
+  border-radius: 50%;
+}
+
+.table-center-decor {
+  position: relative;
+  z-index: 10;
+}
+
+.candle-glow {
+  width: 32px;
+  height: 32px;
+  background: rgba(255,165,0,0.2);
+  border-radius: 50%;
+  filter: blur(12px);
+  animation: flicker 2s infinite alternate;
+}
+
+@keyframes flicker {
+  from { opacity: 0.5; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1.1); }
+}
+
+.candle-stick {
+  width: 8px;
+  height: 24px;
+  background: rgba(255,140,0,0.4);
+  border-radius: 4px;
+  margin-top: -12px;
+}
+
+.stool {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  background: #251810;
+  border: 4px solid #1a110a;
+  border-radius: 50%;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+  transform: translate(-50%, -50%);
+}
+
+.stool-rim {
+  position: absolute;
+  top: 8px; left: 8px; right: 8px; bottom: 8px;
+  border: 1px solid rgba(212,167,86,0.2);
+  border-radius: 50%;
 }
 
 .player-seat {
   position: absolute;
-  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  width: 120px;
+  z-index: 40;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.me-aura {
+  position: absolute;
+  top: 0; left: 0;
+  transform: translate(-10%, -10%);
+  width: 120%;
+  height: 120%;
+  background: rgba(243, 156, 18, 0.15);
+  filter: blur(25px);
+  border-radius: 50%;
+  animation: pulse-aura 3s infinite;
+}
+
+@keyframes pulse-aura {
+  0%, 100% { opacity: 0.5; transform: translate(-10%, -10%) scale(1); }
+  50% { opacity: 1; transform: translate(-10%, -10%) scale(1.1); }
 }
 
 .player-token {
-  width: 70px;
-  height: 70px;
+  width: 80px;
+  height: 80px;
   position: relative;
-  transition: transform 0.2s ease;
-}
-
-.player-token:hover {
-  transform: scale(1.1);
-}
-
-.token-rim {
-  width: 100%;
-  height: 100%;
-  background: silver;
+  background: #1a110a;
   border-radius: 50%;
-  border: 4px solid #fff;
-  box-shadow: 0 6px 0 rgba(0,0,0,0.6);
-}
-
-.token-center {
-  position: absolute;
-  top: 8px; left: 8px; right: 8px; bottom: 8px;
-  background: #111;
-  border-radius: 50%;
+  border: 4px solid #3d2b1f;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2rem;
+  transition: all 0.5s ease;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.7);
 }
 
-/* Enhanced Class Colors */
-.mage .token-rim { background: linear-gradient(135deg, #4a90e2, #1a252f); border-color: #74b9ff; }
-.paladin .token-rim { background: linear-gradient(135deg, #f1c40f, #8b6914); border-color: #ffeaa7; }
-.rogue .token-rim { background: linear-gradient(135deg, #27ae60, #1a2f1a); border-color: #55efc4; }
-.priest .token-rim { background: linear-gradient(135deg, #ecf0f1, #bdc3c7); border-color: #ffffff; }
-.warrior .token-rim { background: linear-gradient(135deg, #e67e22, #5a2e17); border-color: #fab1a0; }
-.hunter .token-rim { background: linear-gradient(135deg, #16a085, #0a3d31); border-color: #81ecec; }
-.warlock .token-rim { background: linear-gradient(135deg, #8e44ad, #2d1a3d); border-color: #a29bfe; }
-.druid .token-rim { background: linear-gradient(135deg, #795548, #2d1b15); border-color: #d7ccc8; }
-
-.player-name {
-  margin-top: 12px;
-  color: #fff;
-  font-size: 0.9rem;
-  font-weight: bold;
-  text-shadow: 1px 1px 2px #000;
-  background: rgba(0,0,0,0.7);
-  padding: 2px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.1);
-  white-space: nowrap;
-}
-
-.player-name.is-me {
-  color: #f1c40f;
+.player-token.is-me {
   border-color: #f1c40f;
+  transform: scale(1.1);
+  box-shadow: 0 0 30px rgba(241, 196, 15, 0.4);
 }
 
-.me-tag {
-  font-size: 0.7rem;
-  opacity: 0.8;
-  margin-left: 2px;
+.token-center {
+  font-size: 2.5rem;
+  z-index: 10;
+}
+
+.char-emoji.animate-float {
+  display: block;
+  animation: float 5s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.player-label {
+  margin-top: 15px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: rgba(0,0,0,0.8);
+  border: 1px solid rgba(217,119,6,0.5);
+  color: rgba(255,255,255,0.6);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
+
+.player-label.is-me {
+  background: #f1c40f;
+  color: #000;
+  border-color: #fff;
+  opacity: 1;
 }
 
 .status-badge {
   position: absolute;
-  top: -10px;
-  right: -10px;
-  width: 28px;
-  height: 28px;
+  top: -5px;
+  right: -5px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.4);
-  z-index: 20;
+  font-size: 1.2rem;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+  z-index: 50;
+  border: 2px solid #fff;
 }
 
-.status-badge.voted { background: #2ecc71; border: 2px solid #fff; }
-.status-badge.waiting { background: #f39c12; border: 2px solid #fff; }
+.status-badge.voted { background: #2ecc71; }
+.status-badge.waiting { background: #f39c12; }
 
 .player-vote-cards {
   position: absolute;
@@ -444,7 +531,7 @@ function prevSlide() {
   width: 80%;
   height: 80%;
   border: 1px solid rgba(212, 167, 86, 0.4);
-  background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(212, 167, 86, 0.1) 5px, rgba(212, 167, 86, 0.1) 10px);
+  background: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(212, 167, 86, 0.1) 5px, rgba(212, 167, 86, 0.1) 10px);
 }
 
 /* Reveal Carousel Overlay Styles */
