@@ -290,8 +290,9 @@ async function importIssue(issue: any) {
         const result = await response.json();
         console.log("Issue imported successfully:", result);
 
-        // The story will be added to the session via WebSocket broadcast
-        // so we don't need to call addStoriesToSession here
+        // Optimistically add to local store to ensure UI updates immediately
+        // The backend will also broadcast via WS, but gameStore now handles duplicates safely
+        gameStore.addStoriesToSession([story]);
 
         // Remove from search results
         searchResults.value = searchResults.value.filter(

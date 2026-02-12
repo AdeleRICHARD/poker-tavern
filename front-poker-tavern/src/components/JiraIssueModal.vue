@@ -427,4 +427,67 @@ defineExpose({
 .quest-modal::-webkit-scrollbar-thumb:hover {
     background: #c49660;
 }
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .quest-modal {
+        width: 100vw;
+        max-width: 100vw;
+        max-height: 100dvh;
+        height: 100dvh;
+        border-radius: 0;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .quest-header {
+        border-radius: 0;
+        padding: 0.75rem 1rem;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .quest-icon {
+        font-size: 1.5rem;
+        padding: 0.35rem;
+    }
+
+    .quest-title {
+        font-size: 1.1rem;
+    }
+
+    .close-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
+    }
+
+    .quest-content {
+        padding: 1rem;
+    }
+
+    .quest-description {
+        padding: 1rem;
+    }
+
+    .description-content {
+        max-height: none;
+    }
+
+    .quest-actions {
+        position: sticky;
+        bottom: 0;
+        border-radius: 0;
+        padding: 1rem;
+    }
+
+    .decline-btn,
+    .accept-btn,
+    .close-only-btn {
+        padding: 0.85rem 1.5rem;
+        min-height: 48px;
+        font-size: 1rem;
+    }
+}
 </style>

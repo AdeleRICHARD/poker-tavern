@@ -710,10 +710,20 @@ export const useGameStore = defineStore("game", () => {
       throw new Error("No active session to add stories to");
     }
 
+    // Filter out stories that already exist
+    const newStories = stories.filter(newStory => 
+      !currentSession.value!.stories.some(existing => existing.id === newStory.id)
+    );
+
+    if (newStories.length === 0) {
+      console.log("No new stories to add (all duplicates)");
+      return;
+    }
+
     // Add stories to current session
     currentSession.value.stories = [
       ...currentSession.value.stories,
-      ...stories,
+      ...newStories,
     ];
 
     // Update game phase after adding stories
@@ -722,7 +732,7 @@ export const useGameStore = defineStore("game", () => {
     // Save updated state
     savePersistedState();
 
-    console.log(`Added ${stories.length} stories to session`);
+    console.log(`Added ${newStories.length} stories to session`);
   }
 
   // JIRA integration (legacy method for basic auth)
@@ -1086,10 +1096,19 @@ export const useGameStore = defineStore("game", () => {
     if (importedStories && currentSession.value) {
       console.log("Stories imported via WebSocket:", importedStories);
 
+      // Filter out stories that already exist
+      const newStories = importedStories.filter(newStory => 
+        !currentSession.value!.stories.some(existing => existing.id === newStory.id)
+      );
+
+      if (newStories.length === 0) {
+        return;
+      }
+
       // Update session with imported stories
       currentSession.value.stories = [
         ...currentSession.value.stories,
-        ...importedStories,
+        ...newStories,
       ];
 
       // Update game phase after importing stories

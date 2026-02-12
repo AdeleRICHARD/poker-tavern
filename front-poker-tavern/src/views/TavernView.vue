@@ -1,6 +1,10 @@
 <template>
-    <div class="tavern-view">
-        <div class="tavern-container">
+    <div class="tavern-view" :class="{ 'is-mobile': isMobile }">
+        <!-- ========== MOBILE LAYOUT ========== -->
+        <MobileTavernView v-if="isMobile" @logout="handleLogout" />
+
+        <!-- ========== DESKTOP LAYOUT ========== -->
+        <div v-else class="tavern-container">
             <!-- Left Sidebar: Session & Characters -->
             <div class="left-sidebar wow-panel">
                 <div class="panel-header">
@@ -208,7 +212,7 @@
             </div>
         </div>
 
-        <!-- Vote Summary Modal to put in a component -->
+        <!-- Vote Summary Modal (desktop only) -->
         <div
             v-if="showSummaryModal"
             class="modal-overlay"
@@ -322,18 +326,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useGameStore, GamePhase } from "@/stores/gameStore";
 import JiraImport from "@/components/JiraImport.vue";
 import PokerCards from "@/components/PokerCards.vue";
 import PixelTavern from "@/components/PixelTavern.vue";
 import JiraIssueModal from "@/components/JiraIssueModal.vue";
+import MobileTavernView from "@/components/MobileTavernView.vue";
 
 // Global store
 const gameStore = useGameStore();
 
 // Vue references
 const sessionIdInput = ref<HTMLInputElement>();
+
+// Mobile detection
+const windowWidth = ref(window.innerWidth);
+const MOBILE_BREAKPOINT = 768;
+const isMobile = computed(() => windowWidth.value <= MOBILE_BREAKPOINT);
+
+
+function handleResize() {
+    windowWidth.value = window.innerWidth;
+}
 
 // Local state
 const showSummaryModal = ref(false);
@@ -353,7 +368,14 @@ async function viewIssueDetails(story: any) {
 onMounted(() => {
     // Always initialize store to load persisted state
     gameStore.initializeStore();
+    window.addEventListener('resize', handleResize);
 });
+
+onUnmounted(() => {
+    window.removeEventListener('resize', handleResize);
+});
+
+
 
 // Add emit to communicate with parent
 const emit = defineEmits<{
@@ -1832,4 +1854,6 @@ function onIssueSelected(issue: any) {
     color: #fff;
     transform: scale(1.1);
 }
+
+
 </style>

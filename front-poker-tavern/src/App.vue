@@ -164,4 +164,15 @@ body {
     padding: 0; /* Remove padding for full immersion */
     overflow: hidden;
 }
+
+/* Mobile: hide the header to maximize screen space (session info is in the mobile top bar) */
+@media (max-width: 768px) {
+    .app-header {
+        display: none;
+    }
+
+    .app-main {
+        min-height: 100dvh;
+    }
+}
 </style>

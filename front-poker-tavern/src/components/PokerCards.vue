@@ -114,4 +114,30 @@ defineEmits<{
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
     padding: 0.75rem 1.5rem;
 }
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .cards-grid {
+        grid-template-columns: repeat(5, 1fr);
+        gap: 0.4rem;
+    }
+
+    .poker-card {
+        aspect-ratio: 1;
+        font-size: 1.1rem;
+        border-radius: 10px;
+        min-height: 44px;
+    }
+
+    .vote-btn {
+        font-size: 1rem;
+        padding: 0.85rem 1rem;
+        min-height: 48px;
+    }
+
+    .poker-cards h3 {
+        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+    }
+}
 </style>
