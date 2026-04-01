@@ -117,8 +117,8 @@
                                 {{ story.title }}
                             </div>
                             <div class="issue-status-left">
-                                <button 
-                                    class="view-btn-mini" 
+                                <button
+                                    class="view-btn-mini"
                                     @click.stop="viewIssueDetails(story)"
                                     title="View ticket details"
                                 >
@@ -146,13 +146,24 @@
                 <div v-if="gameStore.currentSession" class="game-controls-left">
                     <!-- Improved Reveal Button -->
                     <button
-                        v-if="gameStore.currentSession && !gameStore.isCurrentStoryRevealed"
+                        v-if="
+                            gameStore.currentSession &&
+                            !gameStore.isCurrentStoryRevealed
+                        "
                         class="wow-button reveal-btn"
                         :disabled="!gameStore.canReveal"
                         @click="revealAllVotes"
-                        :title="!gameStore.canReveal ? 'All players must vote on ALL tickets before revealing' : 'Reveal all votes for the session'"
+                        :title="
+                            !gameStore.canReveal
+                                ? 'All players must vote on ALL tickets before revealing'
+                                : 'Reveal all votes for the session'
+                        "
                     >
-                        {{ !gameStore.canReveal ? '⏳ Waiting for votes...' : '🎭 Reveal All Votes' }}
+                        {{
+                            !gameStore.canReveal
+                                ? "⏳ Waiting for votes..."
+                                : "🎭 Reveal All Votes"
+                        }}
                     </button>
 
                     <button
@@ -180,7 +191,7 @@
             <div class="center-column">
                 <!-- Pixel Art game area -->
                 <div class="game-area">
-                    <PixelTavern 
+                    <PixelTavern
                         :players="gameStore.players"
                         :currentSession="gameStore.currentSession"
                         :gamePhase="gameStore.gamePhase"
@@ -345,7 +356,6 @@ const windowWidth = ref(window.innerWidth);
 const MOBILE_BREAKPOINT = 768;
 const isMobile = computed(() => windowWidth.value <= MOBILE_BREAKPOINT);
 
-
 function handleResize() {
     windowWidth.value = window.innerWidth;
 }
@@ -368,14 +378,12 @@ async function viewIssueDetails(story: any) {
 onMounted(() => {
     // Always initialize store to load persisted state
     gameStore.initializeStore();
-    window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
 });
 
 onUnmounted(() => {
-    window.removeEventListener('resize', handleResize);
+    window.removeEventListener("resize", handleResize);
 });
-
-
 
 // Add emit to communicate with parent
 const emit = defineEmits<{
@@ -502,7 +510,6 @@ function makeOthersVote() {
     // Save state and update UI
     gameStore.savePersistedState();
     gameStore.updatePlayerVotedStatus();
-
 }
 
 // Helper functions used in template
@@ -519,10 +526,38 @@ function copySessionId() {
     if (gameStore.currentSession?.id) {
         const baseUrl = window.location.origin;
         const inviteLink = `${baseUrl}/?sessionId=${gameStore.currentSession.id}`;
-        navigator.clipboard.writeText(inviteLink).then(() => {
+
+        const onSuccess = () => {
             showCopied.value = true;
             setTimeout(() => (showCopied.value = false), 2000);
-        });
+        };
+
+        const fallbackCopy = () => {
+            const textarea = document.createElement("textarea");
+            textarea.value = inviteLink;
+            textarea.style.position = "fixed";
+            textarea.style.opacity = "0";
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            try {
+                document.execCommand("copy");
+                onSuccess();
+            } catch (err) {
+                console.error("Impossible de copier le lien :", err);
+            } finally {
+                document.body.removeChild(textarea);
+            }
+        };
+
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard
+                .writeText(inviteLink)
+                .then(onSuccess)
+                .catch(fallbackCopy);
+        } else {
+            fallbackCopy();
+        }
     }
 }
 
@@ -536,7 +571,10 @@ function isStoryRevealed(storyId: string): boolean {
     if (!gameStore.currentSession) return false;
     const storyVotes = gameStore.currentSession.persistentVotes[storyId] || {};
     const requiredPlayers = gameStore.currentSession.requiredPlayers;
-    return requiredPlayers.length > 0 && requiredPlayers.every((playerId) => storyVotes[playerId]);
+    return (
+        requiredPlayers.length > 0 &&
+        requiredPlayers.every((playerId) => storyVotes[playerId])
+    );
 }
 
 function getStoryVotesCount(storyId: string): number {
@@ -548,7 +586,6 @@ function getStoryVotesCount(storyId: string): number {
 function revealAllVotes() {
     gameStore.revealVotes();
 }
-
 
 // Issue selection handler
 function onIssueSelected(issue: any) {
@@ -565,7 +602,6 @@ function onIssueSelected(issue: any) {
             console.log("Navigated to story index:", storyIndex);
         }
     }
-
 }
 </script>
 
@@ -1657,7 +1693,6 @@ function onIssueSelected(issue: any) {
     border-color: #27ae60;
 }
 
-
 /* Responsive */
 /* Issues section in left sidebar */
 .issues-section {
@@ -1854,6 +1889,4 @@ function onIssueSelected(issue: any) {
     color: #fff;
     transform: scale(1.1);
 }
-
-
 </style>

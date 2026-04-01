@@ -3,41 +3,59 @@
         <!-- Mobile Top Bar -->
         <div class="mobile-top-bar">
             <div class="mobile-top-left">
-                <span class="mobile-session-name" v-if="gameStore.currentSession">
+                <span
+                    class="mobile-session-name"
+                    v-if="gameStore.currentSession"
+                >
                     🏰 {{ gameStore.currentSession.name }}
                 </span>
                 <span class="mobile-session-name" v-else>🏰 No Session</span>
             </div>
             <div class="mobile-top-right">
-                <span v-if="gameStore.currentSession" class="mobile-player-count">
-                    👥 {{ gameStore.currentSession.requiredPlayers?.length || 0 }}
+                <span
+                    v-if="gameStore.currentSession"
+                    class="mobile-player-count"
+                >
+                    👥
+                    {{ gameStore.currentSession.requiredPlayers?.length || 0 }}
                 </span>
-                <button v-if="gameStore.currentSession" @click="copySessionId" class="mobile-share-btn" :title="showCopied ? 'Copied!' : 'Share link'">
-                    {{ showCopied ? '✅' : '🔗' }}
+                <button
+                    v-if="gameStore.currentSession"
+                    @click="copySessionId"
+                    class="mobile-share-btn"
+                    :title="showCopied ? 'Copied!' : 'Share link'"
+                >
+                    {{ showCopied ? "✅" : "🔗" }}
                 </button>
-                <button class="mobile-logout-btn" @click="handleLogout" title="Logout">🚪</button>
+                <button
+                    class="mobile-logout-btn"
+                    @click="handleLogout"
+                    title="Logout"
+                >
+                    🚪
+                </button>
             </div>
         </div>
 
         <!-- Mobile Tab Navigation -->
         <div class="mobile-tabs">
-            <button 
-                class="mobile-tab" 
-                :class="{ active: activeTab === 'tickets' }" 
+            <button
+                class="mobile-tab"
+                :class="{ active: activeTab === 'tickets' }"
                 @click="activeTab = 'tickets'"
             >
                 📋 Tickets
             </button>
-            <button 
-                class="mobile-tab" 
-                :class="{ active: activeTab === 'vote' }" 
+            <button
+                class="mobile-tab"
+                :class="{ active: activeTab === 'vote' }"
                 @click="activeTab = 'vote'"
             >
                 🃏 Vote
             </button>
-            <button 
-                class="mobile-tab" 
-                :class="{ active: activeTab === 'summary' }" 
+            <button
+                class="mobile-tab"
+                :class="{ active: activeTab === 'summary' }"
                 @click="activeTab = 'summary'"
             >
                 📊 Summary
@@ -51,11 +69,17 @@
                 <!-- No session notice -->
                 <div v-if="!gameStore.currentSession" class="mobile-no-session">
                     <h3>🏠 No Session</h3>
-                    <p>You need to be connected to a session to start estimating.</p>
+                    <p>
+                        You need to be connected to a session to start
+                        estimating.
+                    </p>
                 </div>
 
                 <!-- JIRA Import -->
-                <div v-if="gameStore.currentSession" class="mobile-jira-section">
+                <div
+                    v-if="gameStore.currentSession"
+                    class="mobile-jira-section"
+                >
                     <JiraImport
                         @issue-selected="onIssueSelected"
                         :show-issues-overview="false"
@@ -64,38 +88,68 @@
 
                 <!-- Issues List -->
                 <div
-                    v-if="gameStore.currentSession?.stories && gameStore.currentSession.stories.length > 0"
+                    v-if="
+                        gameStore.currentSession?.stories &&
+                        gameStore.currentSession.stories.length > 0
+                    "
                     class="mobile-issues-section"
                 >
-                    <h4>📋 Issues to Estimate ({{ gameStore.currentSession.stories.length }})</h4>
+                    <h4>
+                        📋 Issues to Estimate ({{
+                            gameStore.currentSession.stories.length
+                        }})
+                    </h4>
                     <div class="mobile-issues-list">
                         <div
-                            v-for="(story, index) in gameStore.currentSession?.stories"
+                            v-for="(story, index) in gameStore.currentSession
+                                ?.stories"
                             :key="story.id"
                             class="mobile-issue-item"
-                            :class="{ active: index === gameStore.localStoryIndex }"
+                            :class="{
+                                active: index === gameStore.localStoryIndex,
+                            }"
                             @click="goToStoryAndVote(index)"
                         >
                             <div class="mobile-issue-header">
-                                <span class="mobile-issue-number">{{ index + 1 }}</span>
-                                <span class="mobile-issue-key">{{ story.jiraKey }}</span>
+                                <span class="mobile-issue-number">{{
+                                    index + 1
+                                }}</span>
+                                <span class="mobile-issue-key">{{
+                                    story.jiraKey
+                                }}</span>
                                 <div class="mobile-issue-badges">
-                                    <button 
-                                        class="mobile-view-btn" 
+                                    <button
+                                        class="mobile-view-btn"
                                         @click.stop="viewIssueDetails(story)"
                                         title="View details"
-                                    >👁️</button>
-                                    <span v-if="hasVotedOnStory(story.id)" class="mobile-voted">✅</span>
-                                    <span v-else class="mobile-pending">⭕</span>
+                                    >
+                                        👁️
+                                    </button>
+                                    <span
+                                        v-if="hasVotedOnStory(story.id)"
+                                        class="mobile-voted"
+                                        >✅</span
+                                    >
+                                    <span v-else class="mobile-pending"
+                                        >⭕</span
+                                    >
                                 </div>
                             </div>
-                            <div class="mobile-issue-title">{{ story.title }}</div>
+                            <div class="mobile-issue-title">
+                                {{ story.title }}
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div v-else-if="gameStore.currentSession" class="mobile-no-issues">
-                    <p>📭 No tickets imported yet. Use JIRA Import above to add tickets.</p>
+                <div
+                    v-else-if="gameStore.currentSession"
+                    class="mobile-no-issues"
+                >
+                    <p>
+                        📭 No tickets imported yet. Use JIRA Import above to add
+                        tickets.
+                    </p>
                 </div>
             </div>
 
@@ -115,36 +169,64 @@
                                 v-for="character in gameStore.availableCharacters"
                                 :key="character.id"
                                 class="mobile-character-btn"
-                                :class="{ active: gameStore.currentPlayer?.character === character.id }"
+                                :class="{
+                                    active:
+                                        gameStore.currentPlayer?.character ===
+                                        character.id,
+                                }"
                                 @click="selectCharacter(character.id)"
                             >
-                                <span class="mobile-char-emoji">{{ character.emoji }}</span>
-                                <span class="mobile-char-name">{{ character.name }}</span>
+                                <span class="mobile-char-emoji">{{
+                                    character.emoji
+                                }}</span>
+                                <span class="mobile-char-name">{{
+                                    character.name
+                                }}</span>
                             </button>
                         </div>
                     </div>
 
                     <!-- Current Story -->
-                    <div v-if="gameStore.currentStory" class="mobile-current-story">
+                    <div
+                        v-if="gameStore.currentStory"
+                        class="mobile-current-story"
+                    >
                         <div class="mobile-story-nav">
-                            <button 
-                                class="mobile-nav-btn" 
-                                @click="gameStore.previousStory()" 
+                            <button
+                                class="mobile-nav-btn"
+                                @click="gameStore.previousStory()"
                                 :disabled="gameStore.localStoryIndex <= 0"
-                            >◀</button>
+                            >
+                                ◀
+                            </button>
                             <span class="mobile-story-counter">
-                                {{ gameStore.currentStoryProgress.current }} / {{ gameStore.currentStoryProgress.total }}
+                                {{ gameStore.currentStoryProgress.current }} /
+                                {{ gameStore.currentStoryProgress.total }}
                             </span>
-                            <button 
-                                class="mobile-nav-btn" 
-                                @click="gameStore.nextStory()" 
-                                :disabled="gameStore.localStoryIndex >= (gameStore.currentSession?.stories?.length || 1) - 1"
-                            >▶</button>
+                            <button
+                                class="mobile-nav-btn"
+                                @click="gameStore.nextStory()"
+                                :disabled="
+                                    gameStore.localStoryIndex >=
+                                    (gameStore.currentSession?.stories
+                                        ?.length || 1) -
+                                        1
+                                "
+                            >
+                                ▶
+                            </button>
                         </div>
                         <div class="mobile-story-info">
-                            <span class="mobile-story-key">{{ gameStore.currentStory.jiraKey }}</span>
+                            <span class="mobile-story-key">{{
+                                gameStore.currentStory.jiraKey
+                            }}</span>
                             <h3>{{ gameStore.currentStory.title }}</h3>
-                            <button class="mobile-detail-btn" @click="viewIssueDetails(gameStore.currentStory)">
+                            <button
+                                class="mobile-detail-btn"
+                                @click="
+                                    viewIssueDetails(gameStore.currentStory)
+                                "
+                            >
                                 👁️ View Details
                             </button>
                         </div>
@@ -158,15 +240,26 @@
                     <!-- Controls -->
                     <div class="mobile-controls">
                         <button
-                            v-if="gameStore.currentSession && !gameStore.isCurrentStoryRevealed"
+                            v-if="
+                                gameStore.currentSession &&
+                                !gameStore.isCurrentStoryRevealed
+                            "
                             class="wow-button mobile-reveal-btn"
                             :disabled="!gameStore.canReveal"
                             @click="revealAllVotes"
                         >
-                            {{ !gameStore.canReveal ? '⏳ Waiting for votes...' : '🎭 Reveal All Votes' }}
+                            {{
+                                !gameStore.canReveal
+                                    ? "⏳ Waiting for votes..."
+                                    : "🎭 Reveal All Votes"
+                            }}
                         </button>
                         <button
-                            v-if="gameStore.gamePhase === GamePhase.VOTING && !gameStore.allStoriesVotedByEveryone && gameStore.currentSession"
+                            v-if="
+                                gameStore.gamePhase === GamePhase.VOTING &&
+                                !gameStore.allStoriesVotedByEveryone &&
+                                gameStore.currentSession
+                            "
                             class="wow-button mobile-test-btn"
                             @click="makeOthersVote"
                         >
@@ -186,47 +279,80 @@
                 <template v-else>
                     <div class="mobile-summary-stats">
                         <div class="mobile-stat">
-                            <span class="mobile-stat-value">{{ gameStore.currentSession?.stories.length || 0 }}</span>
+                            <span class="mobile-stat-value">{{
+                                gameStore.currentSession?.stories.length || 0
+                            }}</span>
                             <span class="mobile-stat-label">Total</span>
                         </div>
                         <div class="mobile-stat">
-                            <span class="mobile-stat-value">{{ getCompletedStoriesCount() }}</span>
+                            <span class="mobile-stat-value">{{
+                                getCompletedStoriesCount()
+                            }}</span>
                             <span class="mobile-stat-label">Done</span>
                         </div>
                         <div class="mobile-stat">
-                            <span class="mobile-stat-value">{{ getYourVotesCount() }}</span>
+                            <span class="mobile-stat-value">{{
+                                getYourVotesCount()
+                            }}</span>
                             <span class="mobile-stat-label">Your Votes</span>
                         </div>
                     </div>
 
                     <div class="mobile-summary-list">
                         <div
-                            v-for="(story, index) in gameStore.currentSession?.stories"
+                            v-for="(story, index) in gameStore.currentSession
+                                ?.stories"
                             :key="story.id"
                             class="mobile-summary-item"
                             :class="{ revealed: isStoryRevealed(story.id) }"
                         >
                             <div class="mobile-summary-header">
-                                <span class="mobile-summary-number">{{ index + 1 }}</span>
-                                <div class="mobile-summary-title">{{ story.title }}</div>
-                                <span v-if="isStoryRevealed(story.id)" class="mobile-status-done">✅</span>
+                                <span class="mobile-summary-number">{{
+                                    index + 1
+                                }}</span>
+                                <div class="mobile-summary-title">
+                                    {{ story.title }}
+                                </div>
+                                <span
+                                    v-if="isStoryRevealed(story.id)"
+                                    class="mobile-status-done"
+                                    >✅</span
+                                >
                                 <span v-else class="mobile-status-pending">
-                                    {{ getStoryVotesCount(story.id) }}/{{ gameStore.currentSession?.requiredPlayers.length }}
+                                    {{ getStoryVotesCount(story.id) }}/{{
+                                        gameStore.currentSession
+                                            ?.requiredPlayers.length
+                                    }}
                                 </span>
                             </div>
-                            <div v-if="isStoryRevealed(story.id)" class="mobile-summary-votes">
+                            <div
+                                v-if="isStoryRevealed(story.id)"
+                                class="mobile-summary-votes"
+                            >
                                 <div class="mobile-votes-row">
                                     <div
-                                        v-for="result in getStoryResults(story.id)"
+                                        v-for="result in getStoryResults(
+                                            story.id,
+                                        )"
                                         :key="result.player"
                                         class="mobile-vote-chip"
                                     >
-                                        <span class="mobile-vote-player">{{ result.player }}</span>
-                                        <span class="mobile-vote-value">{{ result.vote }}</span>
+                                        <span class="mobile-vote-player">{{
+                                            result.player
+                                        }}</span>
+                                        <span class="mobile-vote-value">{{
+                                            result.vote
+                                        }}</span>
                                     </div>
                                 </div>
-                                <div v-if="getStoryAverage(story.id)" class="mobile-story-avg">
-                                    Average: <strong>{{ getStoryAverage(story.id) }}</strong>
+                                <div
+                                    v-if="getStoryAverage(story.id)"
+                                    class="mobile-story-avg"
+                                >
+                                    Average:
+                                    <strong>{{
+                                        getStoryAverage(story.id)
+                                    }}</strong>
                                 </div>
                             </div>
                         </div>
@@ -252,7 +378,7 @@ import PokerCards from "@/components/PokerCards.vue";
 import JiraIssueModal from "@/components/JiraIssueModal.vue";
 
 const gameStore = useGameStore();
-const activeTab = ref<'tickets' | 'vote' | 'summary'>('tickets');
+const activeTab = ref<"tickets" | "vote" | "summary">("tickets");
 const showCopied = ref(false);
 const viewingIssue = ref<any>(null);
 const issueDetailModal = ref<InstanceType<typeof JiraIssueModal>>();
@@ -271,7 +397,7 @@ function selectCharacter(characterId: string) {
 
 function goToStoryAndVote(index: number) {
     gameStore.navigateToStory(index);
-    activeTab.value = 'vote';
+    activeTab.value = "vote";
 }
 
 function submitVote() {
@@ -283,17 +409,47 @@ function copySessionId() {
     if (gameStore.currentSession?.id) {
         const baseUrl = window.location.origin;
         const inviteLink = `${baseUrl}/?sessionId=${gameStore.currentSession.id}`;
-        navigator.clipboard.writeText(inviteLink).then(() => {
+
+        const onSuccess = () => {
             showCopied.value = true;
             setTimeout(() => (showCopied.value = false), 2000);
-        });
+        };
+
+        const fallbackCopy = () => {
+            const textarea = document.createElement("textarea");
+            textarea.value = inviteLink;
+            textarea.style.position = "fixed";
+            textarea.style.opacity = "0";
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            try {
+                document.execCommand("copy");
+                onSuccess();
+            } catch (err) {
+                console.error("Impossible de copier le lien :", err);
+            } finally {
+                document.body.removeChild(textarea);
+            }
+        };
+
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard
+                .writeText(inviteLink)
+                .then(onSuccess)
+                .catch(fallbackCopy);
+        } else {
+            fallbackCopy();
+        }
     }
 }
 
 function onIssueSelected(issue: any) {
     console.log("Issue selected:", issue.title);
     if (gameStore.currentSession?.stories) {
-        const storyIndex = gameStore.currentSession.stories.findIndex(s => s.id === issue.id);
+        const storyIndex = gameStore.currentSession.stories.findIndex(
+            (s) => s.id === issue.id,
+        );
         if (storyIndex >= 0) {
             goToStoryAndVote(storyIndex);
         }
@@ -319,19 +475,26 @@ function hasVotedOnStory(storyId: string): boolean {
 
 function getCompletedStoriesCount(): number {
     if (!gameStore.currentSession) return 0;
-    return gameStore.currentSession.stories.filter((story) => isStoryRevealed(story.id)).length;
+    return gameStore.currentSession.stories.filter((story) =>
+        isStoryRevealed(story.id),
+    ).length;
 }
 
 function getYourVotesCount(): number {
     if (!gameStore.currentSession || !gameStore.currentPlayer) return 0;
-    return gameStore.currentSession.stories.filter((story) => hasVotedOnStory(story.id)).length;
+    return gameStore.currentSession.stories.filter((story) =>
+        hasVotedOnStory(story.id),
+    ).length;
 }
 
 function isStoryRevealed(storyId: string): boolean {
     if (!gameStore.currentSession) return false;
     const storyVotes = gameStore.currentSession.persistentVotes[storyId] || {};
     const requiredPlayers = gameStore.currentSession.requiredPlayers;
-    return requiredPlayers.length > 0 && requiredPlayers.every((playerId) => storyVotes[playerId]);
+    return (
+        requiredPlayers.length > 0 &&
+        requiredPlayers.every((playerId) => storyVotes[playerId])
+    );
 }
 
 function getStoryVotesCount(storyId: string): number {
@@ -370,16 +533,26 @@ function makeOthersVote() {
     const votes = ["1", "2", "3", "5", "8", "13", "?", "☕"];
     if (!gameStore.currentSession || !gameStore.currentStory) return;
 
-    const currentStoryVotes = gameStore.currentSession.persistentVotes[gameStore.currentStory.id] || {};
+    const currentStoryVotes =
+        gameStore.currentSession.persistentVotes[gameStore.currentStory.id] ||
+        {};
 
     gameStore.currentSession.requiredPlayers.forEach((playerId) => {
         if (!currentStoryVotes[playerId]) {
             const randomVote = votes[Math.floor(Math.random() * votes.length)];
-            if (!gameStore.currentSession!.persistentVotes[gameStore.currentStory!.id]) {
-                gameStore.currentSession!.persistentVotes[gameStore.currentStory!.id] = {};
+            if (
+                !gameStore.currentSession!.persistentVotes[
+                    gameStore.currentStory!.id
+                ]
+            ) {
+                gameStore.currentSession!.persistentVotes[
+                    gameStore.currentStory!.id
+                ] = {};
             }
-            gameStore.currentSession!.persistentVotes[gameStore.currentStory!.id][playerId] = randomVote;
-            
+            gameStore.currentSession!.persistentVotes[
+                gameStore.currentStory!.id
+            ][playerId] = randomVote;
+
             const player = gameStore.players.find((p) => p.id === playerId);
             if (player) {
                 player.hasVoted = true;
@@ -485,7 +658,7 @@ function makeOthersVote() {
     background: transparent;
     border: none;
     color: #a69b8d;
-    font-family: 'Cinzel', serif;
+    font-family: "Cinzel", serif;
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
@@ -504,7 +677,7 @@ function makeOthersVote() {
 }
 
 .mobile-tab.active::after {
-    content: '';
+    content: "";
     position: absolute;
     bottom: -2px;
     left: 10%;
@@ -803,7 +976,7 @@ function makeOthersVote() {
     border-radius: 8px;
     cursor: pointer;
     font-size: 0.85rem;
-    font-family: 'Cinzel', serif;
+    font-family: "Cinzel", serif;
     transition: background 0.2s;
     min-height: 44px;
 }
