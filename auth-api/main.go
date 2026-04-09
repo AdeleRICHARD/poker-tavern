@@ -83,8 +83,14 @@ var (
 )
 
 func initSessionStore() {
+	// Prefer explicit Upstash REST variables, but also support Vercel KV (Upstash)
+	// integration variable names.
 	u := strings.TrimSpace(os.Getenv("UPSTASH_REDIS_REST_URL"))
 	t := strings.TrimSpace(os.Getenv("UPSTASH_REDIS_REST_TOKEN"))
+	if u == "" || t == "" {
+		u = strings.TrimSpace(os.Getenv("KV_REST_API_URL"))
+		t = strings.TrimSpace(os.Getenv("KV_REST_API_TOKEN"))
+	}
 	if u == "" || t == "" {
 		return
 	}
