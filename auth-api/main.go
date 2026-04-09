@@ -108,7 +108,8 @@ func initSessionStore() {
 }
 
 func (c *upstashClient) command(args ...any) (any, error) {
-	body, err := json.Marshal(map[string]any{"command": args})
+	// Upstash REST expects a JSON array: ["PING"] / ["SET", "k", "v"]
+	body, err := json.Marshal(args)
 	if err != nil {
 		return nil, err
 	}
