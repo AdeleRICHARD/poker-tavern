@@ -99,6 +99,11 @@ func initSessionStore() {
 		token: t,
 		http:  &http.Client{Timeout: 5 * time.Second},
 	}
+	if _, err := sessionStoreUpstash.command("PING"); err != nil {
+		log.Printf("⚠️ Session store: Upstash REST disabled (PING failed): %v", err)
+		sessionStoreUpstash = nil
+		return
+	}
 	log.Printf("✅ Session store: Upstash REST enabled")
 }
 
@@ -152,6 +157,9 @@ func loadSession(sessionID string) (*Session, bool) {
 
 	res, err := sessionStoreUpstash.command("GET", sessionKey(sessionID))
 	if err != nil || res == nil {
+		if err != nil {
+			log.Printf("⚠️ Session store GET failed: %v", err)
+		}
 		return nil, false
 	}
 
@@ -163,6 +171,7 @@ func loadSession(sessionID string) (*Session, bool) {
 
 	var s Session
 	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		log.Printf("⚠️ Session store decode failed: %v", err)
 		return nil, false
 	}
 	return &s, true
@@ -186,7 +195,9 @@ func saveSession(s *Session) {
 	}
 
 	// Keep sessions for 24h by default to avoid unbounded growth.
-	_, _ = sessionStoreUpstash.command("SET", sessionKey(s.SessionID), string(b), "EX", 60*60*24)
+	if _, err := sessionStoreUpstash.command("SET", sessionKey(s.SessionID), string(b), "EX", 60*60*24); err != nil {
+		log.Printf("⚠️ Session store SET failed: %v", err)
+	}
 }
 
 // Hub maintains the set of active clients and broadcasts messages to them.
