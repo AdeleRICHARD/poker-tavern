@@ -1629,23 +1629,47 @@ func importSelectedJiraIssuesHandler(w http.ResponseWriter, r *http.Request) {
 // corsMiddleware adds CORS headers to every response.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow access from the frontend (both localhost and network).
 		origin := r.Header.Get("Origin")
 
-		// Dynamically allow local network origins
-		if origin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-		} else {
-			// Fallback to localhost for development
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		// Comma-separated list of allowed origins. Example:
+		// ALLOWED_ORIGINS=http://localhost:5173,https://my-frontend.example.com
+		allowedOriginsEnv := strings.TrimSpace(os.Getenv("ALLOWED_ORIGINS"))
+		var allowedOrigins []string
+		if allowedOriginsEnv != "" {
+			for _, part := range strings.Split(allowedOriginsEnv, ",") {
+				if v := strings.TrimSpace(part); v != "" {
+					allowedOrigins = append(allowedOrigins, v)
+				}
+			}
 		}
 
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		originAllowed := false
+		if origin != "" {
+			for _, ao := range allowedOrigins {
+				if origin == ao {
+					originAllowed = true
+					break
+				}
+			}
+		}
+
+		// In local dev it's convenient to allow requests without extra setup.
+		// In production, avoid allowing arbitrary origins; require ALLOWED_ORIGINS.
+		if !originAllowed && os.Getenv("ENVIRONMENT") != "production" && origin == "http://localhost:5173" {
+			originAllowed = true
+		}
+
+		if originAllowed && origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
+
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 		// Handle preflight requests.
 		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		next.ServeHTTP(w, r)
