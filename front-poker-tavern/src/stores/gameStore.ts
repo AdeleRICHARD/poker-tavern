@@ -59,6 +59,8 @@ export const useGameStore = defineStore("game", () => {
   const localPlayerId = ref<string | null>(null);
   const localStoryIndex = ref(0); // Independent story navigation
   const wsConnection = ref<WebSocket | null>(null);
+  const sessionPollIntervalId = ref<number | null>(null);
+  const sessionPollInFlight = ref(false);
   const selectedCard = ref<string | null>(null);
   const gamePhase = ref<GamePhase>(GamePhase.WAITING);
 
@@ -558,6 +560,7 @@ export const useGameStore = defineStore("game", () => {
 
     // Close WebSocket connection
     disconnectWebSocket();
+    stopSessionPolling();
 
     // Only clear local connection state, preserve room data for reconnection
     // The session data stays in localStorage so user can rejoin later
@@ -637,6 +640,9 @@ export const useGameStore = defineStore("game", () => {
         connectWebSocket(sessionId);
       }, 100);
 
+      // WebSocket can be flaky on some hosts; poll as a fallback.
+      startSessionPolling(sessionId);
+
       return Promise.resolve();
     } catch (error) {
       console.error("Error joining session:", error);
@@ -695,6 +701,7 @@ export const useGameStore = defineStore("game", () => {
 
       // Establish WebSocket connection
       connectWebSocket(sessionData.sessionId);
+      startSessionPolling(sessionData.sessionId);
 
       return sessionData.sessionId;
     } catch (error) {
@@ -834,6 +841,62 @@ export const useGameStore = defineStore("game", () => {
     wsConnection.value.onerror = (error) => {
       console.error("WebSocket error:", error);
     };
+  }
+
+  function stopSessionPolling() {
+    if (sessionPollIntervalId.value !== null) {
+      window.clearInterval(sessionPollIntervalId.value);
+      sessionPollIntervalId.value = null;
+    }
+  }
+
+  function applySessionPlayers(sessionPlayers: string[]) {
+    const newPlayers = sessionPlayers.map((name: string) => ({
+      id: name,
+      name,
+      character: "mage",
+      emoji: "🧙‍♂️",
+      hasVoted: false,
+      isReady: true,
+    }));
+
+    const currentPlayerId = currentPlayer.value?.id;
+    players.value = newPlayers;
+
+    if (currentPlayerId) {
+      const updatedCurrentPlayer = players.value.find((p) => p.id === currentPlayerId);
+      if (updatedCurrentPlayer) currentPlayer.value = updatedCurrentPlayer;
+    }
+
+    if (currentSession.value) currentSession.value.requiredPlayers = sessionPlayers;
+  }
+
+  function startSessionPolling(sessionId: string) {
+    stopSessionPolling();
+
+    const pollOnce = async () => {
+      if (!isConnected.value || sessionPollInFlight.value) return;
+      if (!currentSession.value || currentSession.value.id !== sessionId) return;
+
+      sessionPollInFlight.value = true;
+      try {
+        const res = await fetch(getApiUrl(`/session?sessionId=${encodeURIComponent(sessionId)}`));
+        if (!res.ok) return;
+        const sessionData = await res.json();
+
+        if (sessionData?.players && Array.isArray(sessionData.players)) {
+          applySessionPlayers(sessionData.players as string[]);
+        }
+      } catch (e) {
+        // Ignore transient network errors; next tick will retry.
+      } finally {
+        sessionPollInFlight.value = false;
+      }
+    };
+
+    // Immediate poll + periodic fallback.
+    void pollOnce();
+    sessionPollIntervalId.value = window.setInterval(pollOnce, 3000);
   }
 
   function disconnectWebSocket() {
