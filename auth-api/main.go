@@ -462,6 +462,7 @@ func main() {
 	http.HandleFunc("/health", healthHandler)                  // Health check endpoint.
 	http.HandleFunc("/session", handleSession)                 // POST to create, GET to retrieve session.
 	http.HandleFunc("/session/join", joinSessionHandler)       // POST request to join a session.
+	http.HandleFunc("/session/vote", castVoteHandler)          // POST: cast a vote (HTTP fallback for prod).
 	http.HandleFunc("/session/import-jira", importJiraHandler) // POST request to import Jira issues.
 	http.HandleFunc("/ws", wsHandler)                          // WebSocket endpoint for real-time updates (including chat).
 
@@ -488,6 +489,64 @@ func main() {
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
+}
+
+// castVoteHandler stores a vote for a story in a session.
+// This is used as an HTTP fallback when WebSockets are unavailable (e.g. Vercel).
+func castVoteHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		SessionID  string `json:"sessionId"`
+		StoryID    string `json:"storyId"`
+		PlayerID   string `json:"playerId"`
+		Vote       string `json:"vote"`
+		PlayerName string `json:"playerName"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if payload.SessionID == "" || payload.StoryID == "" || payload.PlayerID == "" || payload.Vote == "" {
+		http.Error(w, "sessionId, storyId, playerId and vote are required", http.StatusBadRequest)
+		return
+	}
+
+	session, ok := loadSession(payload.SessionID)
+	if !ok {
+		http.Error(w, "Session not found", http.StatusNotFound)
+		return
+	}
+
+	if session.PersistentVotes == nil {
+		session.PersistentVotes = make(map[string]map[string]string)
+	}
+	if _, ok := session.PersistentVotes[payload.StoryID]; !ok {
+		session.PersistentVotes[payload.StoryID] = make(map[string]string)
+	}
+	session.PersistentVotes[payload.StoryID][payload.PlayerID] = payload.Vote
+	saveSession(session)
+
+	// Best-effort broadcast for local/dev environments where WS works.
+	go func() {
+		hub := getOrCreateHub(payload.SessionID)
+		msg := map[string]interface{}{
+			"type":        "vote_cast",
+			"story_id":    payload.StoryID,
+			"player_id":   payload.PlayerID,
+			"vote":        payload.Vote,
+			"player_name": payload.PlayerName,
+		}
+		if b, err := json.Marshal(msg); err == nil {
+			hub.broadcast <- b
+		}
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(session)
 }
 
 // healthHandler returns a simple JSON status.

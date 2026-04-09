@@ -258,7 +258,7 @@ export const useGameStore = defineStore("game", () => {
     selectedCard.value = cardValue;
   }
 
-  function submitVote() {
+  async function submitVote() {
     console.log("🔍 Debug submitVote() called with:", {
       selectedCard: selectedCard.value,
       currentPlayer: currentPlayer.value,
@@ -294,8 +294,24 @@ export const useGameStore = defineStore("game", () => {
     console.log("🗳️ Submitting vote:", voteMessage);
     console.log("WebSocket ready state:", wsConnection.value?.readyState);
 
-    // Send vote to backend via WebSocket
-    sendWebSocketMessage(voteMessage);
+    // Send vote to backend via HTTP (WS is unreliable on Vercel)
+    try {
+      await fetch(getApiUrl("/session/vote"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId: currentSession.value.id,
+          storyId: currentStory.value.id,
+          playerId: currentPlayer.value.id,
+          vote: selectedCard.value,
+          playerName: currentPlayer.value.name,
+        }),
+      });
+    } catch (e) {
+      console.warn("Failed to persist vote via HTTP:", e);
+    }
 
     // Immediate local update for better UX (feedback instantané)
     if (currentPlayer.value) {
@@ -886,6 +902,14 @@ export const useGameStore = defineStore("game", () => {
 
         if (sessionData?.players && Array.isArray(sessionData.players)) {
           applySessionPlayers(sessionData.players as string[]);
+        }
+
+        if (currentSession.value && sessionData?.persistentVotes) {
+          currentSession.value.persistentVotes = {
+            ...currentSession.value.persistentVotes,
+            ...(sessionData.persistentVotes as Record<string, Record<string, string>>),
+          };
+          updatePlayerVotedStatus();
         }
       } catch (e) {
         // Ignore transient network errors; next tick will retry.
