@@ -1653,9 +1653,21 @@ func corsMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
+		environment := os.Getenv("ENVIRONMENT")
+
+		// Allow any https://*.vercel.app origin (requested behavior).
+		// Set ALLOW_VERCEL_APP_ORIGINS=false to disable.
+		if !originAllowed && origin != "" && os.Getenv("ALLOW_VERCEL_APP_ORIGINS") != "false" {
+			if u, err := url.Parse(origin); err == nil {
+				host := strings.ToLower(u.Hostname())
+				if u.Scheme == "https" && strings.HasSuffix(host, ".vercel.app") {
+					originAllowed = true
+				}
+			}
+		}
+
 		// In local dev it's convenient to allow requests without extra setup.
-		// In production, avoid allowing arbitrary origins; require ALLOWED_ORIGINS.
-		if !originAllowed && os.Getenv("ENVIRONMENT") != "production" && origin == "http://localhost:5173" {
+		if !originAllowed && environment != "production" && origin == "http://localhost:5173" {
 			originAllowed = true
 		}
 
