@@ -911,6 +911,16 @@ export const useGameStore = defineStore("game", () => {
           };
           updatePlayerVotedStatus();
         }
+
+        // Sync stories imported by other players (e.g. Jira import).
+        if (currentSession.value && sessionData?.stories && Array.isArray(sessionData.stories)) {
+          const incomingStories = sessionData.stories as Story[];
+          if (incomingStories.length > (currentSession.value.stories?.length || 0)) {
+            currentSession.value.stories = incomingStories;
+            updateGamePhase();
+            savePersistedState();
+          }
+        }
       } catch (e) {
         // Ignore transient network errors; next tick will retry.
       } finally {
