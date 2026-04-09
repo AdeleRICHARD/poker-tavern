@@ -72,6 +72,117 @@ var (
 	jiraConnectionsMutex = &sync.Mutex{}
 )
 
+type upstashClient struct {
+	url   string
+	token string
+	http  *http.Client
+}
+
+var (
+	sessionStoreUpstash *upstashClient
+)
+
+func initSessionStore() {
+	u := strings.TrimSpace(os.Getenv("UPSTASH_REDIS_REST_URL"))
+	t := strings.TrimSpace(os.Getenv("UPSTASH_REDIS_REST_TOKEN"))
+	if u == "" || t == "" {
+		return
+	}
+	sessionStoreUpstash = &upstashClient{
+		url:   u,
+		token: t,
+		http:  &http.Client{Timeout: 5 * time.Second},
+	}
+	log.Printf("✅ Session store: Upstash REST enabled")
+}
+
+func (c *upstashClient) command(args ...any) (any, error) {
+	body, err := json.Marshal(map[string]any{"command": args})
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest("POST", c.url, strings.NewReader(string(body)))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsed struct {
+		Result any    `json:"result"`
+		Error  string `json:"error"`
+	}
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return nil, fmt.Errorf("upstash invalid json: %w", err)
+	}
+	if parsed.Error != "" {
+		return nil, fmt.Errorf("upstash error: %s", parsed.Error)
+	}
+	return parsed.Result, nil
+}
+
+func sessionKey(sessionID string) string {
+	return "session:" + sessionID
+}
+
+func loadSession(sessionID string) (*Session, bool) {
+	if sessionStoreUpstash == nil {
+		sessionsMutex.Lock()
+		s, ok := sessions[sessionID]
+		sessionsMutex.Unlock()
+		return s, ok
+	}
+
+	res, err := sessionStoreUpstash.command("GET", sessionKey(sessionID))
+	if err != nil || res == nil {
+		return nil, false
+	}
+
+	// Upstash returns string for GET
+	raw, ok := res.(string)
+	if !ok || raw == "" {
+		return nil, false
+	}
+
+	var s Session
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		return nil, false
+	}
+	return &s, true
+}
+
+func saveSession(s *Session) {
+	if s == nil {
+		return
+	}
+
+	if sessionStoreUpstash == nil {
+		sessionsMutex.Lock()
+		sessions[s.SessionID] = s
+		sessionsMutex.Unlock()
+		return
+	}
+
+	b, err := json.Marshal(s)
+	if err != nil {
+		return
+	}
+
+	// Keep sessions for 24h by default to avoid unbounded growth.
+	_, _ = sessionStoreUpstash.command("SET", sessionKey(s.SessionID), string(b), "EX", 60*60*24)
+}
+
 // Hub maintains the set of active clients and broadcasts messages to them.
 type Hub struct {
 	clients    map[*websocket.Conn]bool
@@ -327,6 +438,7 @@ func main() {
 
 	// Note: Using in-memory storage for simplicity
 	// For production, consider adding database persistence
+	initSessionStore()
 
 	// Define endpoints.
 	http.HandleFunc("/health", healthHandler)                  // Health check endpoint.
@@ -394,10 +506,7 @@ func handleSession(w http.ResponseWriter, r *http.Request) {
 			Stories:      []Story{},
 			ChatMessages: []ChatMessage{},
 		}
-
-		sessionsMutex.Lock()
-		sessions[sessionID] = session
-		sessionsMutex.Unlock()
+		saveSession(session)
 
 		// Initialize WebSocket hub for the new session.
 		getOrCreateHub(sessionID)
@@ -416,9 +525,7 @@ func handleSession(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		sessionsMutex.Lock()
-		session, ok := sessions[sessionID]
-		sessionsMutex.Unlock()
+		session, ok := loadSession(sessionID)
 		if !ok {
 			http.Error(w, "Session not found", http.StatusNotFound)
 			return
@@ -458,20 +565,9 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionsMutex.Lock()
-	session, ok := sessions[payload.SessionID]
+	session, ok := loadSession(payload.SessionID)
 	if !ok {
-		sessionsMutex.Unlock()
 		log.Printf("❌ Join session - Session not found: %s", payload.SessionID)
-		log.Printf("📊 Available sessions: %d", len(sessions))
-		// Log first few session IDs for debugging
-		count := 0
-		for id := range sessions {
-			if count < 3 {
-				log.Printf("  - Session ID: %s", id)
-				count++
-			}
-		}
 		http.Error(w, "Session not found", http.StatusNotFound)
 		return
 	}
@@ -483,7 +579,7 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 	if !playerExists {
 		session.Players = append(session.Players, payload.PlayerName)
 	}
-	sessionsMutex.Unlock()
+	saveSession(session)
 
 	// Broadcast the updated session to WebSocket clients (in a goroutine for non-blocking).
 	log.Printf("🎭 Player %s joined session %s. Broadcasting to connected clients...", payload.PlayerName, payload.SessionID)
@@ -1209,14 +1305,11 @@ func importJiraHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionsMutex.Lock()
-	session, ok := sessions[payload.SessionID]
+	session, ok := loadSession(payload.SessionID)
 	if !ok {
-		sessionsMutex.Unlock()
 		http.Error(w, "Session not found", http.StatusNotFound)
 		return
 	}
-	sessionsMutex.Unlock()
 
 	// Connect to Jira
 	tp := jira.BasicAuthTransport{
@@ -1252,9 +1345,8 @@ func importJiraHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add to session
-	sessionsMutex.Lock()
 	session.Stories = append(session.Stories, newStories...)
-	sessionsMutex.Unlock()
+	saveSession(session)
 
 	// Broadcast the update
 	go func() {
@@ -1288,9 +1380,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if session exists.
-	sessionsMutex.Lock()
-	session, ok := sessions[sessionID]
-	sessionsMutex.Unlock()
+	session, ok := loadSession(sessionID)
 	if !ok {
 		log.Printf("❌ WebSocket rejected: session %s not found", sessionID)
 		http.Error(w, "Session not found", http.StatusNotFound)
@@ -1349,13 +1439,12 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				// Append to session's chat history
-				sessionsMutex.Lock()
 				session.ChatMessages = append(session.ChatMessages, ChatMessage{
 					Author:    author,
 					Text:      text,
 					Timestamp: time.Now().Format(time.RFC3339),
 				})
-				sessionsMutex.Unlock()
+				saveSession(session)
 
 				// Broadcast the new message
 				broadcastMsg := map[string]interface{}{
@@ -1379,7 +1468,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				// Store the vote in the session
-				sessionsMutex.Lock()
 				if session.PersistentVotes == nil {
 					session.PersistentVotes = make(map[string]map[string]string)
 				}
@@ -1387,7 +1475,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					session.PersistentVotes[storyID] = make(map[string]string)
 				}
 				session.PersistentVotes[storyID][playerID] = vote
-				sessionsMutex.Unlock()
+				saveSession(session)
 
 				// Broadcast the vote to all clients
 				broadcastMsg := map[string]interface{}{
@@ -1594,17 +1682,15 @@ func importSelectedJiraIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the session
-	sessionsMutex.Lock()
-	session, ok := sessions[payload.SessionID]
+	session, ok := loadSession(payload.SessionID)
 	if !ok {
-		sessionsMutex.Unlock()
 		http.Error(w, "Session not found", http.StatusNotFound)
 		return
 	}
 
 	// Add stories to session
 	session.Stories = append(session.Stories, payload.Stories...)
-	sessionsMutex.Unlock()
+	saveSession(session)
 
 	// Broadcast the update to all clients in the session
 	go func() {
