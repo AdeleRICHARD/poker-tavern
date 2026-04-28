@@ -63,6 +63,7 @@ export const useGameStore = defineStore("game", () => {
   const sessionPollInFlight = ref(false);
   const selectedCard = ref<string | null>(null);
   const gamePhase = ref<GamePhase>(GamePhase.WAITING);
+  const playerCharacters = ref<Record<string, { character: string; emoji: string }>>({});
 
   // Mock data for testing
   const availableCharacters = ref([
@@ -251,6 +252,27 @@ export const useGameStore = defineStore("game", () => {
 
     // Save state after character selection
     savePersistedState();
+
+    // Persist character server-side (HTTP fallback for Vercel)
+    if (currentSession.value && currentPlayer.value) {
+      playerCharacters.value[currentPlayer.value.id] = {
+        character: character.id,
+        emoji: character.emoji,
+      };
+      void fetch(getApiUrl("/session/character"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: currentSession.value.id,
+          playerId: currentPlayer.value.id,
+          playerName: currentPlayer.value.name,
+          character: character.id,
+          emoji: character.emoji,
+        }),
+      }).catch(() => {
+        // Best-effort only; polling/WS will eventually reconcile.
+      });
+    }
   }
 
   function selectCard(cardValue: string) {
@@ -421,6 +443,7 @@ export const useGameStore = defineStore("game", () => {
       requiredPlayers: currentSession.value.requiredPlayers,
       gamePhase: gamePhase.value,
       localStoryIndex: localStoryIndex.value,
+      playerCharacters: playerCharacters.value,
     };
 
     // Use utility function to save session data
@@ -459,6 +482,7 @@ export const useGameStore = defineStore("game", () => {
       players.value = parsed.players || [];
       gamePhase.value = parsed.gamePhase || GamePhase.WAITING;
       localStoryIndex.value = parsed.localStoryIndex || 0;
+      playerCharacters.value = parsed.playerCharacters || {};
 
       console.log(
         "Restored session state from localStorage:",
@@ -621,14 +645,12 @@ export const useGameStore = defineStore("game", () => {
 
       // Convert backend player strings to frontend player objects
       if (sessionData.players) {
-        players.value = sessionData.players.map((playerName: string) => ({
-          id: playerName, // Using name as ID for now
-          name: playerName,
-          character: "mage",
-          emoji: "🧙‍♂️",
-          hasVoted: false,
-          isReady: true,
-        }));
+        const incomingCharacters =
+          (sessionData.playerCharacters as Record<string, string>) || undefined;
+        const incomingEmojis =
+          (sessionData.playerEmojis as Record<string, string>) || undefined;
+
+        applySessionPlayers(sessionData.players as string[], incomingCharacters, incomingEmojis);
 
         // Set current player to the one that just joined
         const joinedPlayer = players.value.find((p) => p.name === playerName);
@@ -866,15 +888,30 @@ export const useGameStore = defineStore("game", () => {
     }
   }
 
-  function applySessionPlayers(sessionPlayers: string[]) {
-    const newPlayers = sessionPlayers.map((name: string) => ({
-      id: name,
-      name,
-      character: "mage",
-      emoji: "🧙‍♂️",
-      hasVoted: false,
-      isReady: true,
-    }));
+  function applySessionPlayers(
+    sessionPlayers: string[],
+    incomingCharacters?: Record<string, string>,
+    incomingEmojis?: Record<string, string>,
+  ) {
+    // Merge incoming persisted characters into local cache
+    if (incomingCharacters) {
+      for (const [playerId, character] of Object.entries(incomingCharacters)) {
+        const emoji = incomingEmojis?.[playerId] || playerCharacters.value[playerId]?.emoji || "🧙‍♂️";
+        playerCharacters.value[playerId] = { character, emoji };
+      }
+    }
+
+    const newPlayers = sessionPlayers.map((name: string) => {
+      const cached = playerCharacters.value[name];
+      return {
+        id: name,
+        name,
+        character: cached?.character || "mage",
+        emoji: cached?.emoji || "🧙‍♂️",
+        hasVoted: false,
+        isReady: true,
+      };
+    });
 
     const currentPlayerId = currentPlayer.value?.id;
     players.value = newPlayers;
@@ -901,7 +938,11 @@ export const useGameStore = defineStore("game", () => {
         const sessionData = await res.json();
 
         if (sessionData?.players && Array.isArray(sessionData.players)) {
-          applySessionPlayers(sessionData.players as string[]);
+          applySessionPlayers(
+            sessionData.players as string[],
+            (sessionData.playerCharacters as Record<string, string>) || undefined,
+            (sessionData.playerEmojis as Record<string, string>) || undefined,
+          );
         }
 
         if (currentSession.value && sessionData?.persistentVotes) {
@@ -980,18 +1021,14 @@ export const useGameStore = defineStore("game", () => {
       console.log(`Players updated via WebSocket:`, sessionPlayers);
 
       // Update players list
-      const newPlayers = sessionPlayers.map((name: string) => ({
-        id: name,
-        name: name,
-        character: "mage",
-        emoji: "🧙‍♂️",
-        hasVoted: false,
-        isReady: true,
-      }));
+      applySessionPlayers(
+        sessionPlayers,
+        (session.playerCharacters as Record<string, string>) || undefined,
+        (session.playerEmojis as Record<string, string>) || undefined,
+      );
 
       // Preserve current player reference
       const currentPlayerId = currentPlayer.value?.id;
-      players.value = newPlayers;
 
       // Restore current player reference
       if (currentPlayerId) {
@@ -1057,19 +1094,9 @@ export const useGameStore = defineStore("game", () => {
     if (playerName && sessionPlayers) {
       console.log(`Player ${playerName} left the session`);
 
-      // Update players list
-      const newPlayers = sessionPlayers.map((name: string) => ({
-        id: name,
-        name: name,
-        character: "mage",
-        emoji: "🧙‍♂️",
-        hasVoted: false,
-        isReady: true,
-      }));
-
-      // Preserve current player reference
+      // Update players list (preserve characters via cache)
       const currentPlayerId = currentPlayer.value?.id;
-      players.value = newPlayers;
+      applySessionPlayers(sessionPlayers);
 
       // Restore current player reference if they're still in the session
       if (currentPlayerId) {
@@ -1097,19 +1124,9 @@ export const useGameStore = defineStore("game", () => {
     if (sessionPlayers) {
       console.log("Players list updated:", sessionPlayers);
 
-      // Update players list
-      const newPlayers = sessionPlayers.map((name: string) => ({
-        id: name,
-        name: name,
-        character: "mage",
-        emoji: "🧙‍♂️",
-        hasVoted: false,
-        isReady: true,
-      }));
-
       // Preserve current player reference
       const currentPlayerId = currentPlayer.value?.id;
-      players.value = newPlayers;
+      applySessionPlayers(sessionPlayers);
 
       // Restore current player reference
       if (currentPlayerId) {
@@ -1232,6 +1249,12 @@ export const useGameStore = defineStore("game", () => {
       if (currentPlayer.value?.id === playerId) {
         return;
       }
+
+      // Update local cache so polling doesn't overwrite.
+      playerCharacters.value[playerId] = {
+        character,
+        emoji: emoji || playerCharacters.value[playerId]?.emoji || "🧙‍♂️",
+      };
 
       // Find and update the player in our list
       const playerIndex = players.value.findIndex((p) => p.id === playerId);

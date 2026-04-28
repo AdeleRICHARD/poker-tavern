@@ -25,6 +25,8 @@ type Session struct {
 	SessionID       string                       `json:"sessionId"`
 	Name            string                       `json:"name"`
 	Players         []string                     `json:"players"`
+	PlayerCharacters map[string]string            `json:"playerCharacters,omitempty"`
+	PlayerEmojis     map[string]string            `json:"playerEmojis,omitempty"`
 	Stories         []Story                      `json:"stories"`
 	ChatMessages    []ChatMessage                `json:"chatMessages"`
 	PersistentVotes map[string]map[string]string `json:"persistentVotes,omitempty"`
@@ -463,6 +465,7 @@ func main() {
 	http.HandleFunc("/session", handleSession)                 // POST to create, GET to retrieve session.
 	http.HandleFunc("/session/join", joinSessionHandler)       // POST request to join a session.
 	http.HandleFunc("/session/vote", castVoteHandler)          // POST: cast a vote (HTTP fallback for prod).
+	http.HandleFunc("/session/character", setCharacterHandler) // POST: persist character selection (HTTP fallback for prod).
 	http.HandleFunc("/session/import-jira", importJiraHandler) // POST request to import Jira issues.
 	http.HandleFunc("/ws", wsHandler)                          // WebSocket endpoint for real-time updates (including chat).
 
@@ -489,6 +492,69 @@ func main() {
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
+}
+
+// setCharacterHandler stores a player's character selection in a session.
+// This is used as an HTTP fallback when WebSockets are unavailable (e.g. Vercel).
+func setCharacterHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		SessionID   string `json:"sessionId"`
+		PlayerID    string `json:"playerId"`
+		PlayerName  string `json:"playerName"`
+		Character   string `json:"character"`
+		Emoji       string `json:"emoji"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if payload.SessionID == "" || payload.PlayerID == "" || payload.Character == "" {
+		http.Error(w, "sessionId, playerId and character are required", http.StatusBadRequest)
+		return
+	}
+
+	session, ok := loadSession(payload.SessionID)
+	if !ok {
+		http.Error(w, "Session not found", http.StatusNotFound)
+		return
+	}
+
+	if session.PlayerCharacters == nil {
+		session.PlayerCharacters = make(map[string]string)
+	}
+	session.PlayerCharacters[payload.PlayerID] = payload.Character
+
+	if payload.Emoji != "" {
+		if session.PlayerEmojis == nil {
+			session.PlayerEmojis = make(map[string]string)
+		}
+		session.PlayerEmojis[payload.PlayerID] = payload.Emoji
+	}
+
+	saveSession(session)
+
+	// Best-effort broadcast for local/dev environments where WS works.
+	go func() {
+		hub := getOrCreateHub(payload.SessionID)
+		msg := map[string]interface{}{
+			"type":       "character_changed",
+			"playerId":   payload.PlayerID,
+			"playerName": payload.PlayerName,
+			"character":  payload.Character,
+			"emoji":      payload.Emoji,
+		}
+		if b, err := json.Marshal(msg); err == nil {
+			hub.broadcast <- b
+		}
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(session)
 }
 
 // castVoteHandler stores a vote for a story in a session.
@@ -580,6 +646,8 @@ func handleSession(w http.ResponseWriter, r *http.Request) {
 			SessionID:    sessionID,
 			Name:         payload.Name,
 			Players:      []string{},
+			PlayerCharacters: map[string]string{},
+			PlayerEmojis:     map[string]string{},
 			Stories:      []Story{},
 			ChatMessages: []ChatMessage{},
 		}
@@ -649,12 +717,26 @@ func joinSessionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if session.PlayerCharacters == nil {
+		session.PlayerCharacters = make(map[string]string)
+	}
+	if session.PlayerEmojis == nil {
+		session.PlayerEmojis = make(map[string]string)
+	}
+
 	log.Printf("✅ Session found: %s (Name: %s, Players: %d)", payload.SessionID, session.Name, len(session.Players))
 
 	// Add player if not already present.
 	playerExists := slices.Contains(session.Players, payload.PlayerName)
 	if !playerExists {
 		session.Players = append(session.Players, payload.PlayerName)
+		// Default class for new players.
+		if _, ok := session.PlayerCharacters[payload.PlayerName]; !ok {
+			session.PlayerCharacters[payload.PlayerName] = "mage"
+		}
+		if _, ok := session.PlayerEmojis[payload.PlayerName]; !ok {
+			session.PlayerEmojis[payload.PlayerName] = "🧙‍♂️"
+		}
 	}
 	saveSession(session)
 
@@ -1577,6 +1659,19 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					log.Printf("❌ Invalid character_changed message: missing fields")
 					continue
 				}
+
+				// Persist character on the session so polling/HTTP GET returns it.
+				if session.PlayerCharacters == nil {
+					session.PlayerCharacters = make(map[string]string)
+				}
+				session.PlayerCharacters[playerID] = character
+				if emojiOK && emoji != "" {
+					if session.PlayerEmojis == nil {
+						session.PlayerEmojis = make(map[string]string)
+					}
+					session.PlayerEmojis[playerID] = emoji
+				}
+				saveSession(session)
 
 				// Broadcast the character change to all clients
 				broadcastMsg := map[string]interface{}{

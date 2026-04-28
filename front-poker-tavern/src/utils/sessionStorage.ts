@@ -11,6 +11,7 @@ export interface SessionStorageData {
   requiredPlayers: string[];
   gamePhase: GamePhase;
   localStoryIndex: number;
+  playerCharacters?: Record<string, { character: string; emoji: string }>;
 }
 
 export interface RoomInfo {
