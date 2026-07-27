@@ -4,14 +4,20 @@
 
         <div class="login-container">
             <header class="page-header">
-                <div class="tavern-sign">
+                <div class="sign-assembly">
+                    <div class="iron-hanger" aria-hidden="true">
+                        <span class="iron-bar"></span>
+                        <span class="iron-scroll"></span>
+                    </div>
                     <span class="sign-chain sign-chain--left" aria-hidden="true"></span>
                     <span class="sign-chain sign-chain--right" aria-hidden="true"></span>
-                    <span class="beer-mark" aria-hidden="true">🍺</span>
-                    <span class="sign-copy">
-                        <small>Bienvenue à</small>
-                        <strong>La Taverne du Planning Poker</strong>
-                    </span>
+                    <div class="tavern-sign">
+                        <span class="beer-mark" aria-hidden="true">🍺</span>
+                        <span class="sign-copy">
+                            <small>Bienvenue à</small>
+                            <strong>La Taverne du Planning Poker</strong>
+                        </span>
+                    </div>
                 </div>
             </header>
 
@@ -305,11 +311,97 @@ async function handleCreateSession() {
 .page-header {
     display: flex;
     justify-content: center;
-    padding-top: 1.75rem;
+    margin-top: calc(0rem - clamp(1.5rem, 4vw, 3.5rem));
+}
+
+.sign-assembly {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: min(100%, 46rem);
+    padding-top: 5.4rem;
+}
+
+.iron-hanger {
+    position: absolute;
+    top: 0.35rem;
+    left: 50%;
+    width: calc(100% - 2rem);
+    height: 3.2rem;
+    transform: translateX(-50%);
+}
+
+.iron-bar {
+    position: absolute;
+    top: 1.5rem;
+    left: 0;
+    width: 100%;
+    height: 0.72rem;
+    border: 1px solid #120d0a;
+    border-radius: 999rem;
+    background: linear-gradient(180deg, #7a6959 0%, #302720 38%, #100d0b 72%, #514238 100%);
+    box-shadow:
+        0 0.22rem 0.3rem rgba(0, 0, 0, 0.75),
+        inset 0 1px rgba(255, 221, 175, 0.2);
+}
+
+.iron-bar::before,
+.iron-bar::after {
+    position: absolute;
+    top: 50%;
+    width: 1.6rem;
+    height: 1.15rem;
+    border: 1px solid #17100c;
+    border-radius: 55% 16% 16% 55%;
+    background: linear-gradient(180deg, #786552, #211a15 58%, #57473b);
+    box-shadow: inset 0 1px rgba(255, 222, 178, 0.18);
+    content: "";
+    transform: translateY(-50%);
+}
+
+.iron-bar::before {
+    left: -0.65rem;
+}
+
+.iron-bar::after {
+    right: -0.65rem;
+    transform: translateY(-50%) rotate(180deg);
+}
+
+.iron-scroll {
+    position: absolute;
+    top: 0.05rem;
+    left: 50%;
+    width: 8.5rem;
+    height: 2.15rem;
+    border-top: 0.35rem solid #302720;
+    border-radius: 50% 50% 0 0;
+    filter: drop-shadow(0 0.15rem 0.15rem rgba(0, 0, 0, 0.85));
+    transform: translateX(-50%);
+}
+
+.iron-scroll::before,
+.iron-scroll::after {
+    position: absolute;
+    top: -0.25rem;
+    width: 1.65rem;
+    height: 1.65rem;
+    border: 0.3rem solid #40352c;
+    border-radius: 50%;
+    content: "";
+}
+
+.iron-scroll::before {
+    left: 1.25rem;
+}
+
+.iron-scroll::after {
+    right: 1.25rem;
 }
 
 .tavern-sign {
     position: relative;
+    z-index: 1;
     display: inline-flex;
     align-self: center;
     gap: 0.9rem;
@@ -321,8 +413,11 @@ async function handleCreateSession() {
     border: 2px solid #8f5a30;
     border-radius: 0.45rem;
     background:
-        linear-gradient(90deg, rgba(255, 210, 144, 0.08), transparent 28%, rgba(0, 0, 0, 0.2)),
-        linear-gradient(180deg, #5b321c, #351c11);
+        radial-gradient(ellipse at 22% 34%, transparent 0 0.42rem, rgba(40, 19, 9, 0.46) 0.48rem 0.56rem, transparent 0.62rem),
+        radial-gradient(ellipse at 78% 70%, transparent 0 0.3rem, rgba(35, 16, 8, 0.4) 0.36rem 0.43rem, transparent 0.5rem),
+        repeating-linear-gradient(176deg, rgba(255, 218, 160, 0.045) 0 0.08rem, transparent 0.08rem 0.48rem),
+        linear-gradient(90deg, rgba(255, 210, 144, 0.13), transparent 32%, rgba(0, 0, 0, 0.22)),
+        linear-gradient(180deg, #704326, #472514 52%, #30180e);
     color: #fff0d5;
     box-shadow:
         0 0.8rem 1.8rem rgba(0, 0, 0, 0.38),
@@ -342,21 +437,31 @@ async function handleCreateSession() {
 
 .sign-chain {
     position: absolute;
-    top: -1.75rem;
-    width: 1px;
-    height: 1.8rem;
-    background: repeating-linear-gradient(to bottom, #a57a4c 0 0.2rem, transparent 0.2rem 0.35rem);
+    top: 1.85rem;
+    width: 0.68rem;
+    height: 3.7rem;
+    background: radial-gradient(
+            ellipse at center,
+            transparent 28%,
+            #4b2f1d 31% 39%,
+            #c0925d 42% 56%,
+            #4b2f1d 59% 65%,
+            transparent 68%
+        )
+        center top / 0.68rem 0.78rem repeat-y;
+    filter: drop-shadow(0 0.12rem 0.12rem rgba(0, 0, 0, 0.9));
+    opacity: 0.95;
     transform-origin: bottom;
 }
 
 .sign-chain--left {
-    left: 16%;
-    transform: rotate(16deg);
+    left: 28%;
+    transform: rotate(8deg);
 }
 
 .sign-chain--right {
-    right: 16%;
-    transform: rotate(-16deg);
+    right: 28%;
+    transform: rotate(-8deg);
 }
 
 .beer-mark {
@@ -735,7 +840,11 @@ async function handleCreateSession() {
     }
 
     .page-header {
-        padding-top: 3rem;
+        margin-top: -1.5rem;
+    }
+
+    .sign-assembly {
+        padding-top: 5.2rem;
     }
 
     .tabletop-layout {
@@ -764,6 +873,18 @@ async function handleCreateSession() {
 
     .tavern-sign {
         padding-right: 0.9rem;
+    }
+
+    .page-header {
+        margin-top: -1rem;
+    }
+
+    .iron-hanger {
+        width: calc(100% - 1.5rem);
+    }
+
+    .iron-scroll {
+        transform: translateX(-50%) scale(0.82);
     }
 
     .sign-copy strong {
