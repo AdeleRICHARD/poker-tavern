@@ -1,115 +1,150 @@
 <template>
     <div class="login-view">
+        <div class="ambient-glow" aria-hidden="true"></div>
+
         <div class="login-container">
-            <div class="login-card wow-panel">
-                <div class="login-header">
-                    <h1>🏰 La Taverne du Planning Poker</h1>
-                    <p>Entrez dans la taverne pour commencer les estimations</p>
+            <header class="page-header">
+                <div class="tavern-sign">
+                    <span class="sign-chain sign-chain--left" aria-hidden="true"></span>
+                    <span class="sign-chain sign-chain--right" aria-hidden="true"></span>
+                    <span class="beer-mark" aria-hidden="true">🍺</span>
+                    <span class="sign-copy">
+                        <small>Bienvenue à</small>
+                        <strong>La Taverne du Planning Poker</strong>
+                    </span>
                 </div>
+            </header>
 
-                <form @submit.prevent="handleLogin" class="login-form">
-                    <div class="form-group">
-                        <label for="playerName">🧙‍♂️ Votre nom</label>
-                        <input
-                            id="playerName"
-                            v-model="playerName"
-                            type="text"
-                            placeholder="Saisissez votre nom"
-                            required
-                            class="form-input"
-                        />
-                    </div>
-
-                    <div class="form-group">
-                        <label for="sessionId">🏠 Identifiant de session</label>
-                        <input
-                            id="sessionId"
-                            v-model="sessionId"
-                            type="text"
-                            placeholder="Saisissez l’identifiant ou laissez vide pour créer une session"
-                            class="form-input"
-                        />
-                        <div v-if="sessionId" class="session-prefilled-notice">
-                            ✨ La session est prête ! Saisissez simplement votre nom ci-dessus.
+            <section class="tabletop-layout" aria-label="Accès et déroulement d’une session">
+                <section class="login-card" aria-labelledby="join-title">
+                    <div class="card-heading">
+                        <div>
+                            <p class="card-kicker">Votre table vous attend</p>
+                            <h2 id="join-title">Rejoindre une session</h2>
                         </div>
+                        <span class="card-icon" aria-hidden="true">✦</span>
                     </div>
 
-                    <div class="form-actions">
+                    <form @submit.prevent="handleLogin" class="login-form">
+                        <div class="form-group">
+                            <label for="playerName">Votre nom</label>
+                            <div class="input-shell">
+                                <span aria-hidden="true">♙</span>
+                                <input
+                                    id="playerName"
+                                    v-model="playerName"
+                                    type="text"
+                                    placeholder="Saisissez votre nom"
+                                    autocomplete="name"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="label-row">
+                                <label for="sessionId">Identifiant de session</label>
+                                <span>Facultatif</span>
+                            </div>
+                            <div class="input-shell">
+                                <span aria-hidden="true">⌘</span>
+                                <input
+                                    id="sessionId"
+                                    v-model="sessionId"
+                                    type="text"
+                                    placeholder="Ex. : A7K9M2"
+                                    autocomplete="off"
+                                />
+                            </div>
+                            <div v-if="sessionId" class="session-prefilled-notice">
+                                <span aria-hidden="true">✓</span>
+                                Session trouvée : il ne manque plus que votre nom.
+                            </div>
+                        </div>
+
                         <button
                             type="submit"
-                            class="wow-button login-btn"
+                            class="primary-button"
                             :disabled="!playerName.trim() || isLoading"
                         >
-                            {{
-                                isLoading ? "Connexion..." : "🚪 Entrer dans la taverne"
-                            }}
+                            <span>{{ isLoading ? "Connexion..." : "Rejoindre la table" }}</span>
+                            <span aria-hidden="true">→</span>
                         </button>
+                    </form>
+
+                    <div class="login-divider">
+                        <span>ou créez votre propre table</span>
                     </div>
-                </form>
 
-                <div class="login-divider">
-                    <span>ou</span>
-                </div>
-
-                <div class="create-session">
-                    <h3>🆕 Créer une nouvelle session</h3>
-                    <form
-                        @submit.prevent="handleCreateSession"
-                        class="create-form"
-                    >
-                        <div class="form-group">
-                            <label for="newSessionName">Nom de la session</label>
-                            <input
-                                id="newSessionName"
-                                v-model="newSessionName"
-                                type="text"
-                                placeholder="Ex. : Planification du sprint 24"
-                                class="form-input"
-                            />
+                    <form @submit.prevent="handleCreateSession" class="create-form">
+                        <div class="form-group create-field">
+                            <label for="newSessionName">Nom de la nouvelle session</label>
+                            <div class="input-shell">
+                                <span aria-hidden="true">◇</span>
+                                <input
+                                    id="newSessionName"
+                                    v-model="newSessionName"
+                                    type="text"
+                                    placeholder="Ex. : Planification du sprint 24"
+                                    autocomplete="off"
+                                />
+                            </div>
                         </div>
 
                         <button
                             type="submit"
-                            class="wow-button create-btn"
+                            class="secondary-button"
                             :disabled="
                                 !playerName.trim() ||
                                 !newSessionName.trim() ||
                                 isLoading
                             "
                         >
-                            {{
-                                isLoading ? "Création..." : "🏗️ Créer la session"
-                            }}
+                            {{ isLoading ? "Création..." : "Créer la session" }}
                         </button>
                     </form>
-                </div>
 
-                <div v-if="errorMessage" class="error-message">
-                    ⚠️ {{ errorMessage }}
-                </div>
-            </div>
+                    <div v-if="errorMessage" class="error-message" role="alert">
+                        <span aria-hidden="true">!</span>
+                        {{ errorMessage }}
+                    </div>
+                </section>
 
-            <div class="login-info">
-                <div class="info-card">
-                    <h3>🎯 Comment ça marche ?</h3>
-                    <ul>
-                        <li>Saisissez votre nom et rejoignez une session</li>
-                        <li>Choisissez la classe de votre personnage WoW</li>
-                        <li>Estimez les sujets avec les cartes de Fibonacci</li>
-                        <li>Révélez les votes lorsque tout le monde a terminé</li>
-                    </ul>
-                </div>
+                <aside class="ritual-card" aria-label="Déroulement d’une estimation">
+                    <div class="ritual-heading">
+                        <p>En trois étapes</p>
+                        <h2>Comment ça marche ?</h2>
+                    </div>
+                    <ol class="ritual-steps">
+                        <li>
+                            <span>01</span>
+                            <div>
+                                <strong>Rassemblez</strong>
+                                <p>Invitez l’équipe avec un simple lien.</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span>02</span>
+                            <div>
+                                <strong>Estimez</strong>
+                                <p>Votez simultanément, sans vous influencer.</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span>03</span>
+                            <div>
+                                <strong>Alignez-vous</strong>
+                                <p>Révélez les cartes et décidez ensemble.</p>
+                            </div>
+                        </li>
+                    </ol>
+                </aside>
+            </section>
 
-                <div class="info-card">
-                    <h3>⚔️ Fonctionnalités</h3>
-                    <ul>
-                        <li>Estimations collaboratives en temps réel</li>
-                        <li>Ambiance de taverne médiévale</li>
-                        <li>Conservation des votes pendant la session</li>
-                        <li>Discussion en équipe grâce au chat</li>
-                    </ul>
-                </div>
-            </div>
+            <blockquote class="table-quote">
+                <span aria-hidden="true">“</span>
+                <p>Les meilleures estimations commencent autour d’une bonne table.</p>
+            </blockquote>
         </div>
     </div>
 </template>
@@ -218,232 +253,539 @@ async function handleCreateSession() {
 
 <style scoped>
 .login-view {
-    min-height: 100vh;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
+    position: relative;
+    isolation: isolate;
+    min-height: 100dvh;
     width: 100%;
+    overflow: auto;
+    padding: clamp(1.5rem, 4vw, 3.5rem);
+    background-image:
+        linear-gradient(90deg, rgba(16, 9, 5, 0.94) 0%, rgba(16, 9, 5, 0.76) 38%, rgba(16, 9, 5, 0.18) 72%, rgba(16, 9, 5, 0.42) 100%),
+        linear-gradient(0deg, rgba(11, 6, 3, 0.82) 0%, transparent 35%),
+        url("../assets/tavern-home-bg.webp");
+    background-position: center;
+    background-size: cover;
+    color: #fff8ea;
+    font-family: "Lato", sans-serif;
+}
+
+.login-view::before {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(circle at 72% 42%, rgba(219, 122, 43, 0.16), transparent 30%);
+    content: "";
+    pointer-events: none;
+}
+
+.ambient-glow {
+    position: absolute;
+    top: 11%;
+    left: 8%;
+    z-index: -1;
+    width: min(32rem, 70vw);
+    height: min(32rem, 70vw);
+    border-radius: 50%;
+    background: rgba(197, 103, 39, 0.12);
+    filter: blur(6rem);
+    pointer-events: none;
 }
 
 .login-container {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-height: calc(100dvh - 7rem);
+    width: min(100%, 78rem);
+    margin: 0 auto;
+}
+
+.page-header {
+    display: flex;
+    justify-content: center;
+    padding-top: 1.75rem;
+}
+
+.tavern-sign {
+    position: relative;
+    display: inline-flex;
+    align-self: center;
+    gap: 0.9rem;
+    align-items: center;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0;
+    padding: 0.8rem 1.25rem 0.8rem 0.9rem;
+    border: 2px solid #8f5a30;
+    border-radius: 0.45rem;
+    background:
+        linear-gradient(90deg, rgba(255, 210, 144, 0.08), transparent 28%, rgba(0, 0, 0, 0.2)),
+        linear-gradient(180deg, #5b321c, #351c11);
+    color: #fff0d5;
+    box-shadow:
+        0 0.8rem 1.8rem rgba(0, 0, 0, 0.38),
+        inset 0 0 0 1px rgba(255, 220, 166, 0.14),
+        inset 0 -0.7rem 1.2rem rgba(16, 7, 3, 0.28);
+    transform: rotate(-0.6deg);
+}
+
+.tavern-sign::after {
+    position: absolute;
+    inset: 0.3rem;
+    border: 1px solid rgba(231, 172, 101, 0.24);
+    border-radius: 0.25rem;
+    content: "";
+    pointer-events: none;
+}
+
+.sign-chain {
+    position: absolute;
+    top: -1.75rem;
+    width: 1px;
+    height: 1.8rem;
+    background: repeating-linear-gradient(to bottom, #a57a4c 0 0.2rem, transparent 0.2rem 0.35rem);
+    transform-origin: bottom;
+}
+
+.sign-chain--left {
+    left: 16%;
+    transform: rotate(16deg);
+}
+
+.sign-chain--right {
+    right: 16%;
+    transform: rotate(-16deg);
+}
+
+.beer-mark {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-    max-width: 1000px;
-    width: 100%;
+    place-items: center;
+    width: 2.55rem;
+    height: 2.55rem;
+    border: 1px solid rgba(240, 185, 112, 0.35);
+    border-radius: 50%;
+    background: rgba(29, 13, 7, 0.34);
+    font-size: 1.45rem;
+    filter: sepia(0.18) saturate(0.92);
+}
+
+.sign-copy {
+    display: grid;
+    gap: 0.08rem;
+}
+
+.sign-copy small {
+    color: #dca869;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.sign-copy strong {
+    font-family: "Cinzel", serif;
+    font-size: 1.08rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-shadow: 0 0.125rem 0.35rem rgba(0, 0, 0, 0.6);
+}
+
+.card-kicker,
+.ritual-heading > p {
+    color: #e9b36f;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.login-card,
+.ritual-card {
+    border: 1px solid rgba(255, 236, 207, 0.16);
+    background: linear-gradient(145deg, rgba(40, 23, 14, 0.92), rgba(20, 12, 8, 0.88));
+    box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.42), inset 0 1px rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(1.25rem) saturate(115%);
 }
 
 .login-card {
-    max-width: 100%;
+    padding: clamp(1.25rem, 3vw, 1.8rem);
+    border-radius: 1.35rem;
 }
 
-.login-header {
-    text-align: center;
-    margin-bottom: 2rem;
+.tabletop-layout {
+    display: grid;
+    grid-template-columns: minmax(31rem, 35rem) minmax(20rem, 25rem);
+    gap: clamp(2rem, 3vw, 3rem);
+    justify-content: center;
+    align-items: stretch;
+    width: min(100%, 63rem);
+    margin-inline: auto;
+    margin-top: clamp(1rem, 2.5vh, 2rem);
 }
 
-.login-header h1 {
-    color: #ffd700;
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+.card-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.35rem;
 }
 
-.login-header p {
-    color: #ecf0f1;
-    font-style: italic;
+.card-heading h2,
+.ritual-heading h2 {
+    margin-top: 0.25rem;
+    color: #fff8ea;
+    font-family: "Cinzel", serif;
+    font-size: 1.3rem;
+    font-weight: 600;
 }
 
-.login-form,
-.create-form {
-    margin-bottom: 1.5rem;
+.card-icon {
+    display: grid;
+    place-items: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border: 1px solid rgba(232, 177, 103, 0.32);
+    border-radius: 0.8rem;
+    background: rgba(232, 177, 103, 0.08);
+    color: #e8b167;
+}
+
+.login-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem;
 }
 
 .form-group {
-    margin-bottom: 1.5rem;
+    min-width: 0;
 }
 
 .form-group label {
     display: block;
-    color: #ffd700;
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-    font-size: 0.9rem;
+    margin-bottom: 0.45rem;
+    color: rgba(255, 248, 234, 0.82);
+    font-size: 0.73rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
 }
 
-.form-input {
-    width: 100%;
-    padding: 0.75rem;
-    border: 2px solid #7f8c8d;
-    border-radius: 8px;
-    background: rgba(52, 73, 94, 0.8);
-    color: #ecf0f1;
-    font-size: 1rem;
-    transition: border-color 0.3s ease;
-}
-
-.form-input:focus {
-    outline: none;
-    border-color: #3498db;
-    box-shadow: 0 0 8px rgba(52, 152, 219, 0.3);
-}
-
-.form-input::placeholder {
-    color: #95a5a6;
-}
-
-.form-actions {
-    text-align: center;
-}
-
-.login-btn,
-.create-btn {
-    width: 100%;
-    padding: 1rem;
-    font-size: 1.1rem;
-    margin: 0.5rem 0;
-}
-
-.login-btn {
-    background: linear-gradient(145deg, #27ae60, #229954) !important;
-    border-color: #27ae60 !important;
-}
-
-.login-btn:hover:not(:disabled) {
-    background: linear-gradient(145deg, #229954, #1e8449) !important;
-    box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4) !important;
-}
-
-.create-btn {
-    background: linear-gradient(145deg, #3498db, #2980b9) !important;
-    border-color: #3498db !important;
-}
-
-.create-btn:hover:not(:disabled) {
-    background: linear-gradient(145deg, #2980b9, #21618c) !important;
-    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4) !important;
-}
-
-.login-divider {
-    text-align: center;
-    margin: 2rem 0;
-    position: relative;
-}
-
-.login-divider::before {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: #7f8c8d;
-}
-
-.login-divider span {
-    background: linear-gradient(145deg, #2c2c54, #2c3e50);
-    color: #95a5a6;
-    padding: 0 1rem;
-    position: relative;
-}
-
-.create-session h3 {
-    color: #3498db;
-    margin-bottom: 1rem;
-    text-align: center;
-}
-
-.error-message {
-    background: rgba(231, 76, 60, 0.2);
-    border: 2px solid #e74c3c;
-    color: #e74c3c;
-    padding: 1rem;
-    border-radius: 8px;
-    text-align: center;
-    margin-top: 1rem;
-}
-
-.login-info {
+.label-row {
     display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.info-card {
-    background: rgba(52, 73, 94, 0.8);
-    border: 2px solid #7f8c8d;
-    border-radius: 12px;
-    padding: 1.5rem;
+.label-row > span {
+    color: rgba(255, 248, 234, 0.42);
+    font-size: 0.65rem;
 }
 
-.info-card h3 {
-    color: #f39c12;
-    margin-bottom: 1rem;
-    text-align: center;
+.input-shell {
+    display: flex;
+    gap: 0.65rem;
+    align-items: center;
+    min-height: 3rem;
+    padding: 0 0.85rem;
+    border: 1px solid rgba(255, 236, 207, 0.13);
+    border-radius: 0.8rem;
+    background: rgba(10, 7, 5, 0.5);
+    color: rgba(232, 177, 103, 0.64);
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
-.info-card ul {
-    list-style: none;
-    padding: 0;
+.input-shell:focus-within {
+    border-color: rgba(232, 177, 103, 0.62);
+    background: rgba(12, 8, 5, 0.72);
+    box-shadow: 0 0 0 0.2rem rgba(232, 177, 103, 0.08);
 }
 
-.info-card li {
-    color: #ecf0f1;
-    margin-bottom: 0.75rem;
-    padding-left: 1.5rem;
-    position: relative;
+.input-shell input {
+    min-width: 0;
+    width: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #fff8ea;
+    font: inherit;
+    font-size: 0.85rem;
 }
 
-.info-card li::before {
-    content: "⚡";
-    position: absolute;
-    left: 0;
-    color: #f39c12;
+.input-shell input::placeholder {
+    color: rgba(255, 248, 234, 0.32);
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-    .login-container {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-
-    .login-header h1 {
-        font-size: 1.5rem;
-    }
-
-    .login-view {
-        padding: 1rem;
-    }
+.primary-button,
+.secondary-button {
+    display: flex;
+    justify-content: center;
+    gap: 0.7rem;
+    align-items: center;
+    min-height: 3rem;
+    border-radius: 0.8rem;
+    font-family: "Lato", sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
-button:disabled {
-    opacity: 0.6;
+.primary-button {
+    grid-column: 1 / -1;
+    border: 1px solid #e2a45e;
+    background: linear-gradient(135deg, #d78c43, #b9662d);
+    color: #1d0f08;
+    box-shadow: 0 0.6rem 1.5rem rgba(181, 91, 34, 0.22);
+}
+
+.primary-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled) {
+    transform: translateY(-0.1rem);
+    box-shadow: 0 0.8rem 1.8rem rgba(181, 91, 34, 0.3);
+}
+
+.primary-button:focus-visible,
+.secondary-button:focus-visible {
+    outline: 2px solid #fff2dc;
+    outline-offset: 0.2rem;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+    opacity: 0.38;
     cursor: not-allowed;
 }
 
-.session-prefilled-notice {
-    margin-top: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    background: rgba(46, 204, 113, 0.1);
-    border: 1px solid rgba(46, 204, 113, 0.3);
-    border-radius: 4px;
-    color: #2ecc71;
-    font-size: 0.85rem;
-    text-align: center;
-    animation: slideIn 0.3s ease-out;
+.login-divider {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin: 1.15rem 0 0.9rem;
+    color: rgba(255, 248, 234, 0.4);
+    font-size: 0.65rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
+.login-divider::before,
+.login-divider::after {
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 236, 207, 0.12);
+    content: "";
+}
+
+.create-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.8rem;
+    align-items: end;
+}
+
+.secondary-button {
+    min-width: 9rem;
+    border: 1px solid rgba(232, 177, 103, 0.35);
+    background: rgba(232, 177, 103, 0.07);
+    color: #f0bd78;
+}
+
+.secondary-button:hover:not(:disabled) {
+    background: rgba(232, 177, 103, 0.13);
+}
+
+.session-prefilled-notice,
+.error-message {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-top: 0.55rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.65rem;
+    font-size: 0.7rem;
+}
+
+.session-prefilled-notice {
+    border: 1px solid rgba(114, 187, 134, 0.22);
+    background: rgba(64, 127, 82, 0.12);
+    color: #a8d6b2;
+}
+
+.error-message {
+    border: 1px solid rgba(232, 103, 82, 0.32);
+    background: rgba(130, 46, 34, 0.2);
+    color: #ffc2b7;
+}
+
+.error-message > span {
+    display: grid;
+    place-items: center;
+    width: 1.2rem;
+    height: 1.2rem;
+    border-radius: 50%;
+    background: rgba(232, 103, 82, 0.18);
+    font-weight: 700;
+}
+
+.table-quote {
+    position: relative;
+    width: min(100%, 63rem);
+    max-width: none;
+    margin: clamp(1.5rem, 3vh, 2.5rem) auto 0;
+    padding: 1.5rem 3rem;
+    border-left: 2px solid rgba(228, 166, 94, 0.62);
+    background: linear-gradient(90deg, rgba(24, 13, 8, 0.68), rgba(24, 13, 8, 0.3));
+    text-shadow: 0 0.125rem 1rem rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(0.25rem);
+}
+
+.table-quote > span {
+    position: absolute;
+    top: 0.3rem;
+    left: 0.8rem;
+    color: rgba(228, 166, 94, 0.65);
+    font-family: Georgia, serif;
+    font-size: 3rem;
+    line-height: 1;
+}
+
+.table-quote p {
+    max-width: 46rem;
+    margin: 0 auto;
+    color: rgba(255, 248, 234, 0.9);
+    font-family: "Cinzel", serif;
+    font-size: clamp(1.25rem, 2.2vw, 1.8rem);
+    font-weight: 500;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.ritual-card {
+    align-self: stretch;
+    width: 100%;
+    padding: 1.5rem;
+    border-radius: 1.2rem;
+}
+
+.ritual-steps {
+    display: grid;
+    gap: 0.35rem;
+    margin-top: 1rem;
+    list-style: none;
+}
+
+.ritual-steps li {
+    display: grid;
+    grid-template-columns: 2.2rem 1fr;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-top: 1px solid rgba(255, 236, 207, 0.1);
+}
+
+.ritual-steps li > span {
+    padding-top: 0.15rem;
+    color: #e2a45e;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.ritual-steps strong {
+    color: #fff8ea;
+    font-family: "Cinzel", serif;
+    font-size: 1rem;
+}
+
+.ritual-steps p {
+    margin-top: 0.2rem;
+    color: rgba(255, 248, 234, 0.55);
+    font-size: 0.82rem;
+    line-height: 1.55;
+}
+
+@media (max-width: 68rem) {
+    .tabletop-layout {
+        grid-template-columns: minmax(28rem, 34rem) minmax(19rem, 23rem);
+        gap: 2rem;
+        width: min(100%, 59rem);
     }
-    to {
-        opacity: 1;
-        transform: translateY(0);
+
+    .table-quote {
+        width: min(100%, 59rem);
+    }
+}
+
+@media (max-width: 52rem) {
+    .login-view {
+        padding: 1.5rem;
+        background-position: 62% center;
+    }
+
+    .login-view::after {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: rgba(14, 8, 5, 0.42);
+        content: "";
+    }
+
+    .login-container {
+        min-height: auto;
+    }
+
+    .page-header {
+        padding-top: 3rem;
+    }
+
+    .tabletop-layout {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+        width: min(100%, 38rem);
+        margin: 0.5rem auto 0;
+    }
+
+    .table-quote {
+        width: min(100%, 38rem);
+        margin-top: 1.5rem;
+        padding: 1.25rem 2.5rem;
+    }
+
+    .ritual-card {
+        width: min(100%, 38rem);
+    }
+}
+
+@media (max-width: 38rem) {
+    .login-view {
+        padding: 1rem;
+        background-position: 68% center;
+    }
+
+    .tavern-sign {
+        padding-right: 0.9rem;
+    }
+
+    .sign-copy strong {
+        font-size: 0.9rem;
+    }
+
+    .login-card {
+        padding: 1.15rem;
+        border-radius: 1.1rem;
+    }
+
+    .login-form,
+    .create-form {
+        grid-template-columns: 1fr;
+    }
+
+    .secondary-button {
+        width: 100%;
+    }
+
+    .ritual-card {
+        padding: 1.15rem;
     }
 }
 </style>

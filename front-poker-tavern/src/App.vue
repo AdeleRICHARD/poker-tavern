@@ -1,6 +1,6 @@
 <template>
     <div id="app">
-        <HealthChecker />
+        <HealthChecker v-if="!isLoggedIn" />
         <header v-if="isLoggedIn" class="app-header">
             <h1>🏰 Planning Poker Tavern</h1>
             <p>Collaborative estimation for your development team</p>
