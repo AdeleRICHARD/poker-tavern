@@ -22,93 +22,124 @@
             </header>
 
             <section class="tabletop-layout" aria-label="Accès et déroulement d’une session">
-                <section class="login-card" aria-labelledby="join-title">
-                    <div class="card-heading">
-                        <div>
-                            <p class="card-kicker">Votre table vous attend</p>
-                            <h2 id="join-title">Rejoindre une session</h2>
+                <section class="login-card" aria-label="Accès à une taverne">
+                    <section class="tavern-action" aria-labelledby="create-title">
+                        <div class="card-heading">
+                            <div>
+                                <p class="card-kicker">Installez votre équipe</p>
+                                <h2 id="create-title">Ouvrir une taverne</h2>
+                            </div>
+                            <span class="card-icon" aria-hidden="true">◇</span>
                         </div>
-                        <span class="card-icon" aria-hidden="true">✦</span>
+
+                        <form @submit.prevent="handleCreateSession" class="login-form">
+                            <div class="form-group">
+                                <label for="creatorName">Votre nom</label>
+                                <div class="input-shell">
+                                    <span aria-hidden="true">♙</span>
+                                    <input
+                                        id="creatorName"
+                                        v-model="creatorName"
+                                        type="text"
+                                        placeholder="Saisissez votre nom"
+                                        autocomplete="name"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="newSessionName">Nom de la taverne</label>
+                                <div class="input-shell">
+                                    <span aria-hidden="true">◇</span>
+                                    <input
+                                        id="newSessionName"
+                                        v-model="newSessionName"
+                                        type="text"
+                                        placeholder="Ex. : Planification du sprint 24"
+                                        autocomplete="off"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                class="secondary-button"
+                                :disabled="
+                                    !creatorName.trim() ||
+                                    !newSessionName.trim() ||
+                                    isLoading
+                                "
+                            >
+                                {{ isLoading ? "Ouverture..." : "Ouvrir la taverne" }}
+                            </button>
+                        </form>
+                    </section>
+
+                    <div class="login-divider" aria-hidden="true">
+                        <span>ou</span>
                     </div>
 
-                    <form @submit.prevent="handleLogin" class="login-form">
-                        <div class="form-group">
-                            <label for="playerName">Votre nom</label>
-                            <div class="input-shell">
-                                <span aria-hidden="true">♙</span>
-                                <input
-                                    id="playerName"
-                                    v-model="playerName"
-                                    type="text"
-                                    placeholder="Saisissez votre nom"
-                                    autocomplete="name"
-                                    required
-                                />
+                    <section class="tavern-action" aria-labelledby="join-title">
+                        <div class="card-heading">
+                            <div>
+                                <p class="card-kicker">Une table vous attend</p>
+                                <h2 id="join-title">Rejoindre une taverne</h2>
                             </div>
+                            <span class="card-icon" aria-hidden="true">✦</span>
                         </div>
 
-                        <div class="form-group">
-                            <div class="label-row">
-                                <label for="sessionId">Identifiant de session</label>
-                                <span>Facultatif</span>
+                        <form @submit.prevent="handleLogin" class="login-form">
+                            <div class="form-group">
+                                <label for="joinPlayerName">Votre nom</label>
+                                <div class="input-shell">
+                                    <span aria-hidden="true">♙</span>
+                                    <input
+                                        id="joinPlayerName"
+                                        v-model="joinPlayerName"
+                                        type="text"
+                                        placeholder="Saisissez votre nom"
+                                        autocomplete="name"
+                                        required
+                                    />
+                                </div>
                             </div>
-                            <div class="input-shell">
-                                <span aria-hidden="true">⌘</span>
-                                <input
-                                    id="sessionId"
-                                    v-model="sessionId"
-                                    type="text"
-                                    placeholder="Ex. : A7K9M2"
-                                    autocomplete="off"
-                                />
+
+                            <div class="form-group">
+                                <label for="sessionId">Identifiant de la taverne</label>
+                                <div class="input-shell">
+                                    <span aria-hidden="true">⌘</span>
+                                    <input
+                                        id="sessionId"
+                                        v-model="sessionId"
+                                        type="text"
+                                        placeholder="Ex. : A7K9M2"
+                                        autocomplete="off"
+                                        required
+                                        @input="isSessionPrefilled = false"
+                                    />
+                                </div>
+                                <div v-if="isSessionPrefilled" class="session-prefilled-notice">
+                                    <span aria-hidden="true">✓</span>
+                                    Identifiant récupéré depuis le lien d’invitation.
+                                </div>
                             </div>
-                            <div v-if="sessionId" class="session-prefilled-notice">
-                                <span aria-hidden="true">✓</span>
-                                Session trouvée : il ne manque plus que votre nom.
-                            </div>
-                        </div>
 
-                        <button
-                            type="submit"
-                            class="primary-button"
-                            :disabled="!playerName.trim() || isLoading"
-                        >
-                            <span>{{ isLoading ? "Connexion..." : "Rejoindre la table" }}</span>
-                            <span aria-hidden="true">→</span>
-                        </button>
-                    </form>
-
-                    <div class="login-divider">
-                        <span>ou créez votre propre table</span>
-                    </div>
-
-                    <form @submit.prevent="handleCreateSession" class="create-form">
-                        <div class="form-group create-field">
-                            <label for="newSessionName">Nom de la nouvelle session</label>
-                            <div class="input-shell">
-                                <span aria-hidden="true">◇</span>
-                                <input
-                                    id="newSessionName"
-                                    v-model="newSessionName"
-                                    type="text"
-                                    placeholder="Ex. : Planification du sprint 24"
-                                    autocomplete="off"
-                                />
-                            </div>
-                        </div>
-
-                        <button
-                            type="submit"
-                            class="secondary-button"
-                            :disabled="
-                                !playerName.trim() ||
-                                !newSessionName.trim() ||
-                                isLoading
-                            "
-                        >
-                            {{ isLoading ? "Création..." : "Créer la session" }}
-                        </button>
-                    </form>
+                            <button
+                                type="submit"
+                                class="primary-button"
+                                :disabled="
+                                    !joinPlayerName.trim() ||
+                                    !sessionId.trim() ||
+                                    isLoading
+                                "
+                            >
+                                <span>{{ isLoading ? "Connexion..." : "Rejoindre la taverne" }}</span>
+                                <span aria-hidden="true">→</span>
+                            </button>
+                        </form>
+                    </section>
 
                     <div v-if="errorMessage" class="error-message" role="alert">
                         <span aria-hidden="true">!</span>
@@ -168,10 +199,12 @@ const emit = defineEmits<{
 const gameStore = useGameStore();
 
 // Form data
-const playerName = ref("");
+const joinPlayerName = ref("");
+const creatorName = ref("");
 const sessionId = ref("");
 const newSessionName = ref("");
 const isLoading = ref(false);
+const isSessionPrefilled = ref(false);
 const errorMessage = ref("");
 
 // Check URL parameters for invite link
@@ -180,6 +213,7 @@ onMounted(() => {
     const sessionIdParam = urlParams.get("sessionId");
     if (sessionIdParam) {
         sessionId.value = sessionIdParam;
+        isSessionPrefilled.value = true;
         // Clean up URL after extracting the parameter
         window.history.replaceState(
             {},
@@ -191,26 +225,16 @@ onMounted(() => {
 
 // Handlers
 async function handleLogin() {
-    if (!playerName.value.trim()) return;
+    if (!joinPlayerName.value.trim() || !sessionId.value.trim()) return;
 
     isLoading.value = true;
     errorMessage.value = "";
 
     try {
-        if (sessionId.value.trim()) {
-            // Join existing session
-            await gameStore.joinSession(
-                sessionId.value.trim(),
-                playerName.value.trim(),
-            );
-        } else {
-            // Create default session
-            await gameStore.createSession(
-                `Session de ${playerName.value}`,
-                [],
-                playerName.value.trim(),
-            );
-        }
+        await gameStore.joinSession(
+            sessionId.value.trim(),
+            joinPlayerName.value.trim(),
+        );
 
         emit("loginSuccess");
     } catch (error) {
@@ -234,7 +258,7 @@ async function handleLogin() {
 }
 
 async function handleCreateSession() {
-    if (!playerName.value.trim() || !newSessionName.value.trim()) return;
+    if (!creatorName.value.trim() || !newSessionName.value.trim()) return;
 
     isLoading.value = true;
     errorMessage.value = "";
@@ -244,7 +268,7 @@ async function handleCreateSession() {
         await gameStore.createSession(
             newSessionName.value.trim(),
             [],
-            playerName.value.trim(),
+            creatorName.value.trim(),
         );
 
         emit("loginSuccess");
@@ -576,17 +600,6 @@ async function handleCreateSession() {
     letter-spacing: 0.02em;
 }
 
-.label-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.label-row > span {
-    color: rgba(255, 248, 234, 0.42);
-    font-size: 0.65rem;
-}
-
 .input-shell {
     display: flex;
     gap: 0.65rem;
@@ -682,14 +695,9 @@ async function handleCreateSession() {
     content: "";
 }
 
-.create-form {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.8rem;
-    align-items: end;
-}
-
 .secondary-button {
+    grid-column: 1 / -1;
+    width: 100%;
     min-width: 9rem;
     border: 1px solid rgba(232, 177, 103, 0.35);
     background: rgba(232, 177, 103, 0.07);
@@ -896,8 +904,7 @@ async function handleCreateSession() {
         border-radius: 1.1rem;
     }
 
-    .login-form,
-    .create-form {
+    .login-form {
         grid-template-columns: 1fr;
     }
 
