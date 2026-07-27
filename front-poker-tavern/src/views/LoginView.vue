@@ -527,7 +527,7 @@ async function handleCreateSession() {
     align-items: stretch;
     width: min(100%, 63rem);
     margin-inline: auto;
-    margin-top: clamp(1rem, 2.5vh, 2rem);
+    margin-top: auto;
 }
 
 .card-heading {
@@ -737,7 +737,7 @@ async function handleCreateSession() {
     position: relative;
     width: min(100%, 63rem);
     max-width: none;
-    margin: clamp(1.5rem, 3vh, 2.5rem) auto 0;
+    margin: clamp(1.5rem, 3vh, 2.5rem) auto auto;
     padding: 1.5rem 3rem;
     border-left: 2px solid rgba(228, 166, 94, 0.62);
     background: linear-gradient(90deg, rgba(24, 13, 8, 0.68), rgba(24, 13, 8, 0.3));
@@ -856,7 +856,7 @@ async function handleCreateSession() {
 
     .table-quote {
         width: min(100%, 38rem);
-        margin-top: 1.5rem;
+        margin: 1.5rem auto 0;
         padding: 1.25rem 2.5rem;
     }
 
