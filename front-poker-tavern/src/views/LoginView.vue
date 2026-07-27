@@ -3,34 +3,34 @@
         <div class="login-container">
             <div class="login-card wow-panel">
                 <div class="login-header">
-                    <h1>🏰 Planning Poker Tavern</h1>
-                    <p>Enter the tavern to start estimating</p>
+                    <h1>🏰 La Taverne du Planning Poker</h1>
+                    <p>Entrez dans la taverne pour commencer les estimations</p>
                 </div>
 
                 <form @submit.prevent="handleLogin" class="login-form">
                     <div class="form-group">
-                        <label for="playerName">🧙‍♂️ Your Name</label>
+                        <label for="playerName">🧙‍♂️ Votre nom</label>
                         <input
                             id="playerName"
                             v-model="playerName"
                             type="text"
-                            placeholder="Enter your name"
+                            placeholder="Saisissez votre nom"
                             required
                             class="form-input"
                         />
                     </div>
 
                     <div class="form-group">
-                        <label for="sessionId">🏠 Session ID</label>
+                        <label for="sessionId">🏠 Identifiant de session</label>
                         <input
                             id="sessionId"
                             v-model="sessionId"
                             type="text"
-                            placeholder="Enter session ID or leave empty to create"
+                            placeholder="Saisissez l’identifiant ou laissez vide pour créer une session"
                             class="form-input"
                         />
                         <div v-if="sessionId" class="session-prefilled-notice">
-                            ✨ Ready to join! Just enter your name above.
+                            ✨ La session est prête ! Saisissez simplement votre nom ci-dessus.
                         </div>
                     </div>
 
@@ -41,29 +41,29 @@
                             :disabled="!playerName.trim() || isLoading"
                         >
                             {{
-                                isLoading ? "Connecting..." : "🚪 Enter Tavern"
+                                isLoading ? "Connexion..." : "🚪 Entrer dans la taverne"
                             }}
                         </button>
                     </div>
                 </form>
 
                 <div class="login-divider">
-                    <span>or</span>
+                    <span>ou</span>
                 </div>
 
                 <div class="create-session">
-                    <h3>🆕 Create New Session</h3>
+                    <h3>🆕 Créer une nouvelle session</h3>
                     <form
                         @submit.prevent="handleCreateSession"
                         class="create-form"
                     >
                         <div class="form-group">
-                            <label for="newSessionName">Session Name</label>
+                            <label for="newSessionName">Nom de la session</label>
                             <input
                                 id="newSessionName"
                                 v-model="newSessionName"
                                 type="text"
-                                placeholder="e.g., Sprint 24 Planning"
+                                placeholder="Ex. : Planification du sprint 24"
                                 class="form-input"
                             />
                         </div>
@@ -78,7 +78,7 @@
                             "
                         >
                             {{
-                                isLoading ? "Creating..." : "🏗️ Create Session"
+                                isLoading ? "Création..." : "🏗️ Créer la session"
                             }}
                         </button>
                     </form>
@@ -91,22 +91,22 @@
 
             <div class="login-info">
                 <div class="info-card">
-                    <h3>🎯 How it works</h3>
+                    <h3>🎯 Comment ça marche ?</h3>
                     <ul>
-                        <li>Enter your name and join a session</li>
-                        <li>Choose your WoW character class</li>
-                        <li>Estimate stories with Fibonacci cards</li>
-                        <li>Reveal votes when everyone is done</li>
+                        <li>Saisissez votre nom et rejoignez une session</li>
+                        <li>Choisissez la classe de votre personnage WoW</li>
+                        <li>Estimez les sujets avec les cartes de Fibonacci</li>
+                        <li>Révélez les votes lorsque tout le monde a terminé</li>
                     </ul>
                 </div>
 
                 <div class="info-card">
-                    <h3>⚔️ Features</h3>
+                    <h3>⚔️ Fonctionnalités</h3>
                     <ul>
-                        <li>Real-time collaborative estimation</li>
-                        <li>Medieval tavern atmosphere</li>
-                        <li>Persistent voting across sessions</li>
-                        <li>Team chat and discussion</li>
+                        <li>Estimations collaboratives en temps réel</li>
+                        <li>Ambiance de taverne médiévale</li>
+                        <li>Conservation des votes pendant la session</li>
+                        <li>Discussion en équipe grâce au chat</li>
                     </ul>
                 </div>
             </div>
@@ -165,7 +165,7 @@ async function handleLogin() {
         } else {
             // Create default session
             await gameStore.createSession(
-                `${playerName.value}'s Session`,
+                `Session de ${playerName.value}`,
                 [],
                 playerName.value.trim(),
             );
@@ -177,15 +177,15 @@ async function handleLogin() {
         if (error instanceof Error) {
             if (error.message.includes("Session not found")) {
                 errorMessage.value =
-                    "Session not found. Please check the Session ID or create a new session.";
+                    "Session introuvable. Vérifiez son identifiant ou créez une nouvelle session.";
             } else if (error.message.includes("404")) {
                 errorMessage.value =
-                    "Session not found. Please verify the Session ID.";
+                    "Session introuvable. Vérifiez son identifiant.";
             } else {
-                errorMessage.value = "Failed to connect. Please try again.";
+                errorMessage.value = "Impossible de se connecter. Veuillez réessayer.";
             }
         } else {
-            errorMessage.value = "Failed to connect. Please try again.";
+            errorMessage.value = "Impossible de se connecter. Veuillez réessayer.";
         }
     } finally {
         isLoading.value = false;
@@ -208,7 +208,7 @@ async function handleCreateSession() {
 
         emit("loginSuccess");
     } catch (error) {
-        errorMessage.value = "Failed to create session. Please try again.";
+        errorMessage.value = "Impossible de créer la session. Veuillez réessayer.";
         console.error("Create session error:", error);
     } finally {
         isLoading.value = false;
