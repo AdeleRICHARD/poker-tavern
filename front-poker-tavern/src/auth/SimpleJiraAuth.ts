@@ -142,6 +142,39 @@ class SimpleJiraAuth {
       throw new Error(`Issue search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
+  /**
+   * Updates Story Points on a given JIRA issue.
+   * Note: Backend has a safety rail; it will refuse unless JIRA_WRITE_ENABLED=true.
+   */
+  async updateStoryPoints(sessionId: string | undefined, issueKey: string, storyPoints: number): Promise<any> {
+    const trimmedKey = (issueKey || '').trim();
+    if (!trimmedKey) throw new Error('issueKey is required');
+    if (!Number.isFinite(storyPoints) || storyPoints < 0) throw new Error('storyPoints must be >= 0');
+
+    const response = await fetch(`${this.baseUrl}/jira/story-points`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        issueKey: trimmedKey,
+        storyPoints: Math.floor(storyPoints),
+      }),
+    });
+
+    // Backend returns a JSON body for both success and dry-run rejection.
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const msg =
+        typeof data?.message === 'string'
+          ? data.message
+          : `Failed to update story points (${response.status})`;
+      const err = new Error(msg);
+      (err as any).details = data;
+      throw err;
+    }
+    return data;
+  }
 }
 
 export default SimpleJiraAuth;

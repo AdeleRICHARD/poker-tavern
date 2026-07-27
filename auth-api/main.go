@@ -475,6 +475,7 @@ func main() {
 	http.HandleFunc("/jira/status", jiraStatusHandler)                      // JIRA connection status
 	http.HandleFunc("/jira/search", jiraSearchHandler)                      // JIRA issue search
 	http.HandleFunc("/jira/import-issues", importSelectedJiraIssuesHandler) // Import selected JIRA issues
+	http.HandleFunc("/jira/story-points", jiraUpdateStoryPointsHandler)     // Update story points on a JIRA issue
 
 	// Demo OAuth endpoint for testing popup flow
 	http.HandleFunc("/demo/oauth", demoOAuthHandler)
@@ -821,7 +822,10 @@ func jiraAuthUrlHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redirectURI := fmt.Sprintf("%s/auth/jira/callback", baseURL)
-	scopes := "offline_access read:jira-work read:jira-user read:account read:me read:issue:jira read:project:jira"
+	// Include write scopes so we can update Story Points on issues.
+	// Atlassian OAuth scopes vary between "classic" (write:jira-work) and "granular" (write:issue:jira).
+	// Including both keeps things working across app configurations.
+	scopes := "offline_access read:jira-work read:jira-user read:account read:me read:issue:jira read:project:jira write:jira-work write:issue:jira"
 
 	// Generate state parameter for security (store sessionID in state)
 	state := fmt.Sprintf("session_%s", sessionID)
@@ -839,6 +843,349 @@ func jiraAuthUrlHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"authUrl": authURL,
+	})
+}
+
+type jiraAccessibleResource struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+func getFirstAccessibleJiraResource(accessToken string) (*jiraAccessibleResource, error) {
+	req, err := http.NewRequest("GET", "https://api.atlassian.com/oauth/token/accessible-resources", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get accessible resources: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("accessible resources error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var resources []jiraAccessibleResource
+	if err := json.Unmarshal(body, &resources); err != nil {
+		return nil, fmt.Errorf("decode accessible resources: %w", err)
+	}
+	if len(resources) == 0 {
+		return nil, fmt.Errorf("no accessible JIRA resources found")
+	}
+	return &resources[0], nil
+}
+
+var (
+	jiraStoryPointsFieldCache      = make(map[string]string) // key: cloudID or domain -> customfield id
+	jiraStoryPointsFieldCacheMutex = &sync.Mutex{}
+)
+
+func resolveStoryPointsFieldIDViaOAuth(accessToken, cloudID string) (string, error) {
+	// Allow overriding via env var for deterministic behavior.
+	if v := strings.TrimSpace(os.Getenv("JIRA_STORY_POINTS_FIELD_ID")); v != "" {
+		return v, nil
+	}
+
+	jiraStoryPointsFieldCacheMutex.Lock()
+	if cached, ok := jiraStoryPointsFieldCache["oauth:"+cloudID]; ok && cached != "" {
+		jiraStoryPointsFieldCacheMutex.Unlock()
+		return cached, nil
+	}
+	jiraStoryPointsFieldCacheMutex.Unlock()
+
+	fieldsURL := fmt.Sprintf("https://api.atlassian.com/ex/jira/%s/rest/api/3/field", cloudID)
+	req, err := http.NewRequest("GET", fieldsURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("fields request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("fields request error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var fields []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(body, &fields); err != nil {
+		return "", fmt.Errorf("decode fields: %w", err)
+	}
+
+	// Prefer the common Jira Software field label.
+	var candidates = []string{"Story point estimate", "Story Points", "Story points"}
+	for _, want := range candidates {
+		for _, f := range fields {
+			if f.ID != "" && strings.EqualFold(strings.TrimSpace(f.Name), want) {
+				jiraStoryPointsFieldCacheMutex.Lock()
+				jiraStoryPointsFieldCache["oauth:"+cloudID] = f.ID
+				jiraStoryPointsFieldCacheMutex.Unlock()
+				return f.ID, nil
+			}
+		}
+	}
+
+	// Fallback: pick any customfield containing "story point".
+	for _, f := range fields {
+		if f.ID != "" && strings.Contains(strings.ToLower(f.Name), "story point") {
+			jiraStoryPointsFieldCacheMutex.Lock()
+			jiraStoryPointsFieldCache["oauth:"+cloudID] = f.ID
+			jiraStoryPointsFieldCacheMutex.Unlock()
+			return f.ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("could not find Story Points field; set JIRA_STORY_POINTS_FIELD_ID env var")
+}
+
+func resolveStoryPointsFieldIDViaAPIToken(domain, email, apiToken string) (string, error) {
+	if v := strings.TrimSpace(os.Getenv("JIRA_STORY_POINTS_FIELD_ID")); v != "" {
+		return v, nil
+	}
+
+	cacheKey := "token:" + strings.ToLower(strings.TrimSpace(domain))
+	jiraStoryPointsFieldCacheMutex.Lock()
+	if cached, ok := jiraStoryPointsFieldCache[cacheKey]; ok && cached != "" {
+		jiraStoryPointsFieldCacheMutex.Unlock()
+		return cached, nil
+	}
+	jiraStoryPointsFieldCacheMutex.Unlock()
+
+	fieldsURL := fmt.Sprintf("https://%s/rest/api/3/field", domain)
+	req, err := http.NewRequest("GET", fieldsURL, nil)
+	if err != nil {
+		return "", err
+	}
+	auth := email + ":" + apiToken
+	encodedAuth := base64.StdEncoding.EncodeToString([]byte(auth))
+	req.Header.Set("Authorization", "Basic "+encodedAuth)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("fields request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("fields request error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var fields []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(body, &fields); err != nil {
+		return "", fmt.Errorf("decode fields: %w", err)
+	}
+
+	var candidates = []string{"Story point estimate", "Story Points", "Story points"}
+	for _, want := range candidates {
+		for _, f := range fields {
+			if f.ID != "" && strings.EqualFold(strings.TrimSpace(f.Name), want) {
+				jiraStoryPointsFieldCacheMutex.Lock()
+				jiraStoryPointsFieldCache[cacheKey] = f.ID
+				jiraStoryPointsFieldCacheMutex.Unlock()
+				return f.ID, nil
+			}
+		}
+	}
+
+	for _, f := range fields {
+		if f.ID != "" && strings.Contains(strings.ToLower(f.Name), "story point") {
+			jiraStoryPointsFieldCacheMutex.Lock()
+			jiraStoryPointsFieldCache[cacheKey] = f.ID
+			jiraStoryPointsFieldCacheMutex.Unlock()
+			return f.ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("could not find Story Points field; set JIRA_STORY_POINTS_FIELD_ID env var")
+}
+
+// jiraUpdateStoryPointsHandler updates Story Points on a JIRA issue.
+// Works for both:
+// - API token mode (env: JIRA_EMAIL, JIRA_DOMAIN, API_TOKEN_JIRA)
+// - OAuth mode (session-scoped access token stored in jiraConnections)
+func jiraUpdateStoryPointsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		SessionID   string `json:"sessionId,omitempty"` // required for OAuth mode
+		IssueKey    string `json:"issueKey"`
+		StoryPoints int    `json:"storyPoints"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	payload.IssueKey = strings.TrimSpace(payload.IssueKey)
+	if payload.IssueKey == "" {
+		http.Error(w, "issueKey is required", http.StatusBadRequest)
+		return
+	}
+	if payload.StoryPoints < 0 {
+		http.Error(w, "storyPoints must be >= 0", http.StatusBadRequest)
+		return
+	}
+
+	// Safety rail: writing to JIRA is disabled by default to prevent accidental
+	// production updates. Explicitly set JIRA_WRITE_ENABLED=true to enable.
+	if strings.ToLower(strings.TrimSpace(os.Getenv("JIRA_WRITE_ENABLED"))) != "true" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":     false,
+			"dryRun":      true,
+			"message":     "JIRA write operations are disabled. Set JIRA_WRITE_ENABLED=true to enable.",
+			"issueKey":    payload.IssueKey,
+			"storyPoints": payload.StoryPoints,
+		})
+		return
+	}
+
+	// API token mode (preferred for server-to-server setups)
+	if isAPITokenMode() {
+		email := strings.TrimSpace(os.Getenv("JIRA_EMAIL"))
+		domain := strings.TrimSpace(os.Getenv("JIRA_DOMAIN"))
+		token := strings.TrimSpace(os.Getenv("API_TOKEN_JIRA"))
+
+		fieldID, err := resolveStoryPointsFieldIDViaAPIToken(domain, email, token)
+		if err != nil {
+			http.Error(w, "Failed to resolve Story Points field: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		updateURL := fmt.Sprintf("https://%s/rest/api/3/issue/%s", domain, url.PathEscape(payload.IssueKey))
+		updateBody := map[string]any{
+			"fields": map[string]any{
+				fieldID: payload.StoryPoints,
+			},
+		}
+		b, _ := json.Marshal(updateBody)
+		req, err := http.NewRequest("PUT", updateURL, strings.NewReader(string(b)))
+		if err != nil {
+			http.Error(w, "Failed to create request: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		auth := email + ":" + token
+		encodedAuth := base64.StdEncoding.EncodeToString([]byte(auth))
+		req.Header.Set("Authorization", "Basic "+encodedAuth)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			http.Error(w, "Failed to update issue: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			body, _ := io.ReadAll(resp.Body)
+			http.Error(w, fmt.Sprintf("JIRA API error (%d): %s", resp.StatusCode, string(body)), resp.StatusCode)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"success":     true,
+			"mode":        "api_token",
+			"issueKey":    payload.IssueKey,
+			"storyPoints": payload.StoryPoints,
+			"fieldId":     fieldID,
+		})
+		return
+	}
+
+	// OAuth mode
+	if payload.SessionID == "" {
+		http.Error(w, "sessionId is required (OAuth mode)", http.StatusBadRequest)
+		return
+	}
+
+	jiraConnectionsMutex.Lock()
+	conn, ok := jiraConnections[payload.SessionID]
+	jiraConnectionsMutex.Unlock()
+	if !ok || conn == nil || strings.TrimSpace(conn.APIToken) == "" {
+		http.Error(w, "JIRA connection not established", http.StatusUnauthorized)
+		return
+	}
+
+	resource, err := getFirstAccessibleJiraResource(conn.APIToken)
+	if err != nil {
+		http.Error(w, "Failed to resolve Jira site: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fieldID, err := resolveStoryPointsFieldIDViaOAuth(conn.APIToken, resource.ID)
+	if err != nil {
+		http.Error(w, "Failed to resolve Story Points field: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	updateURL := fmt.Sprintf("https://api.atlassian.com/ex/jira/%s/rest/api/3/issue/%s", resource.ID, url.PathEscape(payload.IssueKey))
+	updateBody := map[string]any{
+		"fields": map[string]any{
+			fieldID: payload.StoryPoints,
+		},
+	}
+	b, _ := json.Marshal(updateBody)
+	req, err := http.NewRequest("PUT", updateURL, strings.NewReader(string(b)))
+	if err != nil {
+		http.Error(w, "Failed to create request: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+conn.APIToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Atlassian-Token", "no-check")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "Failed to update issue: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		http.Error(w, fmt.Sprintf("JIRA API error (%d): %s", resp.StatusCode, string(body)), resp.StatusCode)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"success":     true,
+		"mode":        "oauth",
+		"issueKey":    payload.IssueKey,
+		"storyPoints": payload.StoryPoints,
+		"fieldId":     fieldID,
+		"cloudId":     resource.ID,
 	})
 }
 

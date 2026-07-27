@@ -320,6 +320,60 @@
                                         getStoryAverage(story.id)
                                     }}</strong>
                                 </div>
+
+                                <div
+                                    v-if="isStoryRevealed(story.id) && story.jiraKey"
+                                    class="jira-push-row"
+                                >
+                                    <div class="jira-push-controls">
+                                        <label class="jira-push-label">
+                                            Jira SP
+                                        </label>
+                                        <input
+                                            class="jira-push-input"
+                                            type="number"
+                                            min="0"
+                                            :value="getPushValue(story.id) ?? ''"
+                                            @input="
+                                                setPushValue(
+                                                    story.id,
+                                                    ($event.target as HTMLInputElement).value,
+                                                )
+                                            "
+                                        />
+                                        <button
+                                            class="jira-push-btn"
+                                            :disabled="
+                                                jiraPushStatusByStoryId[story.id]?.status ===
+                                                'saving'
+                                            "
+                                            @click="pushStoryPointsToJira(story.id)"
+                                            :title="
+                                                jiraPushStatusByStoryId[story.id]?.message ||
+                                                'Push Story Points to Jira'
+                                            "
+                                        >
+                                            {{
+                                                jiraPushStatusByStoryId[story.id]?.status ===
+                                                'saving'
+                                                    ? 'Saving...'
+                                                    : 'Update Jira'
+                                            }}
+                                        </button>
+                                    </div>
+                                    <div
+                                        v-if="jiraPushStatusByStoryId[story.id]?.status === 'error'"
+                                        class="jira-push-error"
+                                    >
+                                        {{ jiraPushStatusByStoryId[story.id]?.message }}
+                                    </div>
+                                    <div
+                                        v-else-if="jiraPushStatusByStoryId[story.id]?.status === 'saved'"
+                                        class="jira-push-success"
+                                    >
+                                        {{ jiraPushStatusByStoryId[story.id]?.message }}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -344,6 +398,7 @@ import PokerCards from "@/components/PokerCards.vue";
 import PixelTavern from "@/components/PixelTavern.vue";
 import JiraIssueModal from "@/components/JiraIssueModal.vue";
 import MobileTavernView from "@/components/MobileTavernView.vue";
+import SimpleJiraAuth from "@/auth/SimpleJiraAuth";
 
 // Global store
 const gameStore = useGameStore();
@@ -366,6 +421,9 @@ const showCopied = ref(false);
 const selectedIssueForVoting = ref<any>(null);
 const viewingIssue = ref<any>(null);
 const issueDetailModal = ref<InstanceType<typeof JiraIssueModal>>();
+const jiraAuth = new SimpleJiraAuth();
+const jiraPushPointsByStoryId = ref<Record<string, number>>({});
+const jiraPushStatusByStoryId = ref<Record<string, { status: "idle" | "saving" | "saved" | "error"; message?: string }>>({});
 
 // Methods
 async function viewIssueDetails(story: any) {
@@ -463,6 +521,65 @@ function getStoryAverage(storyId: string): number | null {
     if (numericVotes.length === 0) return null;
     const sum = numericVotes.reduce((acc, vote) => acc + vote, 0);
     return Math.round((sum / numericVotes.length) * 10) / 10;
+}
+
+function getSuggestedStoryPoints(storyId: string): number | null {
+    const avg = getStoryAverage(storyId);
+    if (avg === null) return null;
+    // Suggest an integer; user can override.
+    return Math.round(avg);
+}
+
+function getStoryJiraKey(storyId: string): string | null {
+    const story = gameStore.currentSession?.stories?.find((s) => s.id === storyId);
+    const key = (story as any)?.jiraKey;
+    return typeof key === "string" && key.trim() ? key.trim() : null;
+}
+
+function getPushValue(storyId: string): number | null {
+    const existing = jiraPushPointsByStoryId.value[storyId];
+    if (typeof existing === "number" && Number.isFinite(existing)) return existing;
+    const suggested = getSuggestedStoryPoints(storyId);
+    if (suggested === null) return null;
+    jiraPushPointsByStoryId.value = { ...jiraPushPointsByStoryId.value, [storyId]: suggested };
+    return suggested;
+}
+
+function setPushValue(storyId: string, raw: string) {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return;
+    jiraPushPointsByStoryId.value = {
+        ...jiraPushPointsByStoryId.value,
+        [storyId]: n,
+    };
+}
+
+async function pushStoryPointsToJira(storyId: string) {
+    const issueKey = getStoryJiraKey(storyId);
+    if (!issueKey) return;
+    const sessionId = gameStore.currentSession?.id;
+    const points = getPushValue(storyId);
+    if (points === null) return;
+
+    jiraPushStatusByStoryId.value = {
+        ...jiraPushStatusByStoryId.value,
+        [storyId]: { status: "saving" },
+    };
+
+    try {
+        await jiraAuth.updateStoryPoints(sessionId, issueKey, points);
+        jiraPushStatusByStoryId.value = {
+            ...jiraPushStatusByStoryId.value,
+            [storyId]: { status: "saved", message: "Updated on Jira" },
+        };
+    } catch (e) {
+        const message =
+            e instanceof Error ? e.message : "Failed to update Jira story points";
+        jiraPushStatusByStoryId.value = {
+            ...jiraPushStatusByStoryId.value,
+            [storyId]: { status: "error", message },
+        };
+    }
 }
 
 function hasCurrentPlayerVoted(): boolean {
@@ -1475,6 +1592,67 @@ function onIssueSelected(issue: any) {
     background: rgba(241, 196, 15, 0.1);
     border-radius: 6px;
     border: 1px solid #f39c12;
+}
+
+.jira-push-row {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(127, 140, 141, 0.4);
+}
+
+.jira-push-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.jira-push-label {
+    color: #95a5a6;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.jira-push-input {
+    width: 90px;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    border: 1px solid rgba(52, 152, 219, 0.6);
+    background: rgba(0, 0, 0, 0.25);
+    color: #ecf0f1;
+    text-align: center;
+}
+
+.jira-push-btn {
+    background: linear-gradient(145deg, #3498db, #2980b9);
+    border: 1px solid #3498db;
+    color: white;
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.8rem;
+    transition: all 0.2s ease;
+}
+
+.jira-push-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.jira-push-error {
+    margin-top: 0.5rem;
+    color: #e74c3c;
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.jira-push-success {
+    margin-top: 0.5rem;
+    color: #2ecc71;
+    font-size: 0.8rem;
+    text-align: center;
 }
 
 .stories-overview {

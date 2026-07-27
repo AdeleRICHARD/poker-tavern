@@ -354,6 +354,54 @@
                                         getStoryAverage(story.id)
                                     }}</strong>
                                 </div>
+
+                                <div
+                                    v-if="isStoryRevealed(story.id) && story.jiraKey"
+                                    class="mobile-jira-push"
+                                >
+                                    <div class="mobile-jira-push-controls">
+                                        <span class="mobile-jira-push-label">Jira SP</span>
+                                        <input
+                                            class="mobile-jira-push-input"
+                                            type="number"
+                                            min="0"
+                                            :value="getPushValue(story.id) ?? ''"
+                                            @input="
+                                                setPushValue(
+                                                    story.id,
+                                                    ($event.target as HTMLInputElement).value,
+                                                )
+                                            "
+                                        />
+                                        <button
+                                            class="mobile-jira-push-btn"
+                                            :disabled="
+                                                jiraPushStatusByStoryId[story.id]?.status ===
+                                                'saving'
+                                            "
+                                            @click="pushStoryPointsToJira(story.id)"
+                                        >
+                                            {{
+                                                jiraPushStatusByStoryId[story.id]?.status ===
+                                                'saving'
+                                                    ? 'Saving...'
+                                                    : 'Update Jira'
+                                            }}
+                                        </button>
+                                    </div>
+                                    <div
+                                        v-if="jiraPushStatusByStoryId[story.id]?.status === 'error'"
+                                        class="mobile-jira-push-error"
+                                    >
+                                        {{ jiraPushStatusByStoryId[story.id]?.message }}
+                                    </div>
+                                    <div
+                                        v-else-if="jiraPushStatusByStoryId[story.id]?.status === 'saved'"
+                                        class="mobile-jira-push-success"
+                                    >
+                                        {{ jiraPushStatusByStoryId[story.id]?.message }}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -376,12 +424,16 @@ import { useGameStore, GamePhase } from "@/stores/gameStore";
 import JiraImport from "@/components/JiraImport.vue";
 import PokerCards from "@/components/PokerCards.vue";
 import JiraIssueModal from "@/components/JiraIssueModal.vue";
+import SimpleJiraAuth from "@/auth/SimpleJiraAuth";
 
 const gameStore = useGameStore();
 const activeTab = ref<"tickets" | "vote" | "summary">("tickets");
 const showCopied = ref(false);
 const viewingIssue = ref<any>(null);
 const issueDetailModal = ref<InstanceType<typeof JiraIssueModal>>();
+const jiraAuth = new SimpleJiraAuth();
+const jiraPushPointsByStoryId = ref<Record<string, number>>({});
+const jiraPushStatusByStoryId = ref<Record<string, { status: "idle" | "saving" | "saved" | "error"; message?: string }>>({});
 
 const emit = defineEmits<{
     logout: [];
@@ -527,6 +579,56 @@ function getStoryAverage(storyId: string): number | null {
     if (numericVotes.length === 0) return null;
     const sum = numericVotes.reduce((acc, vote) => acc + vote, 0);
     return Math.round((sum / numericVotes.length) * 10) / 10;
+}
+
+function getSuggestedStoryPoints(storyId: string): number | null {
+    const avg = getStoryAverage(storyId);
+    if (avg === null) return null;
+    return Math.round(avg);
+}
+
+function getPushValue(storyId: string): number | null {
+    const existing = jiraPushPointsByStoryId.value[storyId];
+    if (typeof existing === "number" && Number.isFinite(existing)) return existing;
+    const suggested = getSuggestedStoryPoints(storyId);
+    if (suggested === null) return null;
+    jiraPushPointsByStoryId.value = { ...jiraPushPointsByStoryId.value, [storyId]: suggested };
+    return suggested;
+}
+
+function setPushValue(storyId: string, raw: string) {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return;
+    jiraPushPointsByStoryId.value = { ...jiraPushPointsByStoryId.value, [storyId]: n };
+}
+
+async function pushStoryPointsToJira(storyId: string) {
+    const story = gameStore.currentSession?.stories?.find((s) => s.id === storyId) as any;
+    const issueKey = typeof story?.jiraKey === "string" ? story.jiraKey.trim() : "";
+    if (!issueKey) return;
+    const sessionId = gameStore.currentSession?.id;
+    const points = getPushValue(storyId);
+    if (points === null) return;
+
+    jiraPushStatusByStoryId.value = {
+        ...jiraPushStatusByStoryId.value,
+        [storyId]: { status: "saving" },
+    };
+
+    try {
+        await jiraAuth.updateStoryPoints(sessionId, issueKey, points);
+        jiraPushStatusByStoryId.value = {
+            ...jiraPushStatusByStoryId.value,
+            [storyId]: { status: "saved", message: "Updated on Jira" },
+        };
+    } catch (e) {
+        const message =
+            e instanceof Error ? e.message : "Failed to update Jira story points";
+        jiraPushStatusByStoryId.value = {
+            ...jiraPushStatusByStoryId.value,
+            [storyId]: { status: "error", message },
+        };
+    }
 }
 
 function makeOthersVote() {
@@ -1151,5 +1253,66 @@ function makeOthersVote() {
     border: 1px solid rgba(243, 156, 18, 0.3);
     border-radius: 8px;
     font-size: 0.9rem;
+}
+
+.mobile-jira-push {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(93, 64, 55, 0.5);
+}
+
+.mobile-jira-push-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.mobile-jira-push-label {
+    color: #a69b8d;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.mobile-jira-push-input {
+    width: 84px;
+    padding: 0.35rem 0.5rem;
+    border-radius: 8px;
+    border: 1px solid rgba(100, 181, 246, 0.35);
+    background: rgba(0, 0, 0, 0.2);
+    color: #e0d8c3;
+    text-align: center;
+    min-height: 40px;
+}
+
+.mobile-jira-push-btn {
+    background: rgba(100, 181, 246, 0.18);
+    border: 1px solid rgba(100, 181, 246, 0.35);
+    color: #64b5f6;
+    padding: 0.5rem 0.75rem;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 800;
+    min-height: 40px;
+}
+
+.mobile-jira-push-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.mobile-jira-push-error {
+    margin-top: 0.5rem;
+    color: #e74c3c;
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.mobile-jira-push-success {
+    margin-top: 0.5rem;
+    color: #2ecc71;
+    font-size: 0.8rem;
+    text-align: center;
 }
 </style>
