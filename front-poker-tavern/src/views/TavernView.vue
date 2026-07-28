@@ -1889,4 +1889,278 @@ function onIssueSelected(issue: any) {
     color: #fff;
     transform: scale(1.1);
 }
+
+/* Modern tavern skin — layout and handlers intentionally unchanged */
+.tavern-view {
+    height: calc(100dvh - 5.25rem);
+    min-height: calc(100dvh - 5.25rem);
+    overflow: hidden;
+    padding: clamp(0.75rem, 1.5vw, 1.5rem);
+    background-image:
+        linear-gradient(90deg, rgba(13, 8, 5, 0.92), rgba(13, 8, 5, 0.56) 48%, rgba(13, 8, 5, 0.78)),
+        linear-gradient(0deg, rgba(10, 6, 4, 0.88), transparent 45%),
+        url("../assets/tavern-home-bg.webp");
+    background-position: center;
+    background-size: cover;
+    color: #fff8ea;
+    font-family: "Lato", sans-serif;
+}
+
+.tavern-container {
+    grid-template-areas: "left center right";
+    grid-template-columns: minmax(15rem, 18rem) minmax(32rem, 1fr) minmax(20rem, 24rem);
+    gap: clamp(0.75rem, 1.25vw, 1.25rem);
+    width: min(100%, 112rem);
+    height: 100%;
+    margin: 0 auto;
+    padding: 0;
+}
+
+.left-sidebar,
+.right-sidebar {
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid rgba(240, 196, 132, 0.2);
+    border-radius: 1.25rem;
+    background: linear-gradient(160deg, rgba(42, 24, 15, 0.93), rgba(18, 11, 7, 0.9));
+    box-shadow:
+        0 1.5rem 3.5rem rgba(0, 0, 0, 0.38),
+        inset 0 1px rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(1.25rem) saturate(112%);
+}
+
+.left-sidebar {
+    grid-area: left;
+}
+
+.right-sidebar {
+    grid-area: right;
+}
+
+.center-column {
+    grid-area: center;
+}
+
+.left-sidebar::after,
+.right-sidebar::after {
+    display: none;
+}
+
+.panel-header {
+    min-height: 2.5rem;
+    margin-bottom: 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(236, 181, 106, 0.16);
+}
+
+.panel-header h3 {
+    color: #f2c27f;
+    font-family: "Cinzel", serif;
+    font-size: 0.86rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.logout-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border: 1px solid rgba(232, 121, 88, 0.35);
+    background: rgba(122, 45, 28, 0.16);
+    color: #ec9a7e;
+}
+
+.logout-btn:hover {
+    border-color: rgba(242, 151, 120, 0.7);
+    background: rgba(156, 58, 34, 0.3);
+    transform: translateY(-0.08rem);
+}
+
+.room-info {
+    margin-bottom: 0;
+    padding: 0.9rem;
+    border: 1px solid rgba(232, 177, 103, 0.28);
+    border-radius: 0.9rem;
+    background:
+        repeating-linear-gradient(176deg, rgba(255, 218, 160, 0.025) 0 0.08rem, transparent 0.08rem 0.48rem),
+        linear-gradient(145deg, rgba(93, 52, 28, 0.42), rgba(23, 13, 8, 0.55));
+}
+
+.session-name {
+    color: #fff3dc;
+    font-family: "Cinzel", serif;
+    font-size: 0.86rem;
+}
+
+.player-count {
+    padding: 0.25rem 0.55rem;
+    border: 1px solid rgba(232, 177, 103, 0.18);
+    border-radius: 999rem;
+    background: rgba(9, 6, 4, 0.34);
+    color: #dfb77f;
+}
+
+.session-id-row {
+    margin: 0.65rem 0 0;
+}
+
+.session-id-code {
+    padding: 0.55rem 0.7rem;
+    border: 1px solid rgba(255, 236, 207, 0.1);
+    border-radius: 0.55rem;
+    background: rgba(8, 5, 3, 0.48);
+    color: rgba(255, 248, 234, 0.58);
+}
+
+.copy-btn-small {
+    min-width: 2.35rem;
+    min-height: 2.2rem;
+    border-color: rgba(232, 177, 103, 0.3);
+    border-radius: 0.55rem;
+    background: rgba(232, 177, 103, 0.08);
+}
+
+.character-selection-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+
+.character-btn-list {
+    min-width: 0;
+    min-height: 3.4rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid rgba(255, 236, 207, 0.12);
+    border-radius: 0.75rem;
+    background: rgba(11, 7, 5, 0.42);
+    color: rgba(255, 248, 234, 0.7);
+}
+
+.character-btn-list:hover {
+    border-color: rgba(232, 177, 103, 0.48);
+    background: rgba(88, 48, 25, 0.45);
+    transform: translateY(-0.08rem);
+}
+
+.character-btn-list.active {
+    border-color: #dca45f;
+    background: linear-gradient(135deg, #b66b31, #78401f);
+    color: #fff8ea;
+    box-shadow: 0 0.5rem 1.25rem rgba(146, 72, 28, 0.24);
+}
+
+.char-emoji {
+    font-size: 1.25rem;
+}
+
+.char-name {
+    overflow: hidden;
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.game-area {
+    min-height: 32rem;
+    border: 1px solid rgba(239, 188, 116, 0.2);
+    border-radius: 1.35rem;
+    background: rgba(14, 9, 6, 0.76);
+    box-shadow:
+        0 1.75rem 4rem rgba(0, 0, 0, 0.42),
+        inset 0 1px rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(0.65rem);
+}
+
+.game-status {
+    top: 4.1rem;
+}
+
+.status-indicator {
+    padding: 0.55rem 1rem;
+    border: 1px solid rgba(229, 174, 101, 0.38);
+    border-radius: 999rem;
+    background: rgba(22, 13, 8, 0.84);
+    color: #f6d49d;
+    font-size: 0.72rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    backdrop-filter: blur(0.75rem);
+}
+
+.status-indicator.voting {
+    border-color: rgba(232, 177, 103, 0.54);
+}
+
+.issues-section {
+    margin-top: 0;
+    padding: 0.75rem;
+    border: 1px solid rgba(232, 177, 103, 0.16);
+    border-radius: 0.85rem;
+    background: rgba(12, 8, 5, 0.38);
+}
+
+.issue-item-left {
+    border: 1px solid rgba(255, 236, 207, 0.1);
+    border-radius: 0.65rem;
+    background: rgba(255, 248, 234, 0.035);
+}
+
+.issue-item-left:hover,
+.issue-item-left.active {
+    border-color: rgba(232, 177, 103, 0.42);
+    background: rgba(124, 69, 34, 0.28);
+}
+
+.cards-section-left,
+.game-controls-left {
+    margin-top: 0;
+}
+
+.left-sidebar::-webkit-scrollbar,
+.right-sidebar::-webkit-scrollbar {
+    width: 0.4rem;
+}
+
+.left-sidebar::-webkit-scrollbar-track,
+.right-sidebar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.left-sidebar::-webkit-scrollbar-thumb,
+.right-sidebar::-webkit-scrollbar-thumb {
+    border-radius: 999rem;
+    background: rgba(217, 153, 80, 0.36);
+}
+
+@media (max-width: 75rem) {
+    .tavern-container {
+        grid-template-columns: 15rem minmax(28rem, 1fr) 19rem;
+    }
+}
+
+@media (max-width: 64rem) and (min-width: 48.01rem) {
+    .tavern-view {
+        height: auto;
+        overflow-y: auto;
+    }
+
+    .tavern-container {
+        grid-template-areas:
+            "center center"
+            "left right";
+        grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+        grid-template-rows: minmax(34rem, 58dvh) auto;
+        height: auto;
+        overflow: visible;
+    }
+}
+
+@media (max-width: 48rem) {
+    .tavern-view {
+        height: 100dvh;
+        min-height: 100dvh;
+        padding: 0;
+        overflow: auto;
+    }
+}
 </style>

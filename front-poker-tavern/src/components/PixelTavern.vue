@@ -741,4 +741,117 @@ function prevSlide() {
   0% { transform: translate(0, -100px) scale(0) rotate(-45deg); opacity: 0; }
   100% { opacity: 1; }
 }
+
+/* Modern tavern skin — scene structure and player placement stay unchanged */
+.pixel-tavern {
+  min-height: 32rem;
+  border-radius: 1.3rem;
+  background: #0d0805;
+}
+
+.tavern-background {
+  background:
+    radial-gradient(circle at 50% 48%, rgba(194, 103, 39, 0.16), transparent 35%),
+    linear-gradient(145deg, rgba(50, 28, 17, 0.72), rgba(10, 7, 5, 0.94));
+}
+
+.floor-planks {
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 3.4rem, rgba(226, 171, 99, 0.035) 3.4rem 3.48rem),
+    linear-gradient(90deg, transparent, rgba(230, 153, 72, 0.05), transparent);
+  background-size: 100% auto;
+  opacity: 1;
+}
+
+.title-banner {
+  top: 1.45rem;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid rgba(232, 177, 103, 0.2);
+  border-radius: 999rem;
+  background: rgba(17, 10, 6, 0.52);
+  color: rgba(255, 238, 211, 0.68);
+  font-family: "Cinzel", serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-shadow: none;
+  backdrop-filter: blur(0.65rem);
+}
+
+.table-shadow {
+  background: rgba(0, 0, 0, 0.72);
+  filter: blur(4rem);
+}
+
+.tavern-table {
+  border: 0.75rem solid #24150d;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(224, 153, 79, 0.18), transparent 28%),
+    repeating-radial-gradient(ellipse at center, transparent 0 1.5rem, rgba(238, 182, 110, 0.035) 1.55rem 1.62rem),
+    linear-gradient(135deg, #654027, #3b2417 58%, #2b190f);
+  box-shadow:
+    0 2rem 4rem rgba(0, 0, 0, 0.68),
+    inset 0 0 0 1px rgba(242, 194, 130, 0.14),
+    inset 0 -1.5rem 2.5rem rgba(0, 0, 0, 0.32);
+}
+
+.table-grain-outer,
+.table-grain-inner {
+  border-color: rgba(238, 183, 111, 0.12);
+}
+
+.candle-glow {
+  background: rgba(255, 159, 67, 0.34);
+  filter: blur(1rem);
+}
+
+.stool {
+  border-color: #1b100a;
+  background: linear-gradient(145deg, #3b2417, #21130c);
+  box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.48);
+}
+
+.player-token {
+  border: 0.22rem solid rgba(193, 125, 66, 0.48);
+  background: linear-gradient(145deg, rgba(47, 29, 18, 0.96), rgba(15, 10, 7, 0.98));
+  box-shadow:
+    0 0.75rem 1.75rem rgba(0, 0, 0, 0.58),
+    inset 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.player-token.is-me {
+  border-color: #e3aa63;
+  box-shadow: 0 0 2rem rgba(220, 142, 65, 0.34);
+}
+
+.player-label {
+  margin-top: 0.8rem;
+  padding: 0.3rem 0.75rem;
+  border-color: rgba(217, 148, 77, 0.3);
+  background: rgba(13, 8, 5, 0.8);
+  color: rgba(255, 246, 231, 0.7);
+  font-family: "Lato", sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.11em;
+}
+
+.player-label.is-me {
+  border-color: #e3aa63;
+  background: linear-gradient(135deg, #d78c43, #a95528);
+  color: #1b0e07;
+}
+
+.status-badge {
+  border: 1px solid rgba(255, 248, 234, 0.7);
+  background: rgba(28, 17, 10, 0.9);
+  font-size: 1rem;
+}
+
+.status-badge.voted {
+  background: #3d7850;
+}
+
+.status-badge.waiting {
+  background: #9b642e;
+}
 </style>

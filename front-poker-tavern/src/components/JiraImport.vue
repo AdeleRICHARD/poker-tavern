@@ -1129,4 +1129,180 @@ onMounted(() => {
         font-size: 0.85rem;
     }
 }
+
+/* Modern tavern skin — Jira requests and actions stay unchanged */
+.jira-import {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.jira-import h3 {
+    margin-bottom: 0.8rem;
+    color: #f1c17d;
+    font-family: "Cinzel", serif;
+    font-size: 0.86rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.connected-status {
+    gap: 0.4rem;
+    margin-bottom: 0.8rem;
+}
+
+.status-badge {
+    padding: 0.45rem 0.7rem;
+    border-radius: 999rem;
+    font-family: "Lato", sans-serif;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+}
+
+.status-badge.connected {
+    border-color: rgba(105, 188, 126, 0.36);
+    background: rgba(51, 117, 68, 0.16);
+    color: #9bd1a8;
+}
+
+.disconnect-btn {
+    color: rgba(239, 153, 128, 0.7);
+    font-family: "Lato", sans-serif;
+    text-decoration: none;
+}
+
+.search-form {
+    gap: 0.65rem;
+    margin-bottom: 1rem;
+}
+
+.search-input {
+    min-height: 2.8rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid rgba(255, 236, 207, 0.14);
+    border-radius: 0.7rem;
+    background: rgba(9, 6, 4, 0.5);
+    color: #fff6e7;
+    font-family: "Lato", sans-serif;
+    font-size: 0.78rem;
+}
+
+.search-input:focus {
+    border-color: rgba(232, 177, 103, 0.58);
+    box-shadow: 0 0 0 0.18rem rgba(232, 177, 103, 0.08);
+}
+
+.search-btn {
+    min-height: 2.7rem;
+    border: 1px solid #d99955;
+    border-radius: 0.7rem;
+    background: linear-gradient(135deg, #d58a42, #a95629);
+    color: #1b0e07;
+    font-family: "Lato", sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.search-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #e29a50, #bb6330);
+    box-shadow: 0 0.65rem 1.4rem rgba(171, 83, 34, 0.24);
+    transform: translateY(-0.08rem);
+}
+
+.search-results,
+.issues-list,
+.imported-stories-list {
+    border: 1px solid rgba(232, 177, 103, 0.14);
+    border-radius: 0.8rem;
+    background: rgba(8, 5, 3, 0.32);
+}
+
+.search-results {
+    max-height: 31rem;
+    padding: 0.65rem;
+}
+
+.search-results h4,
+.issues-overview h4,
+.imported-stories h4 {
+    color: #e8b36e;
+    font-family: "Cinzel", serif;
+    font-size: 0.76rem;
+    letter-spacing: 0.04em;
+}
+
+.issue-card,
+.issue-item,
+.imported-story-item {
+    gap: 0.6rem;
+    padding: 0.75rem 0.65rem;
+    border-bottom: 1px solid rgba(255, 236, 207, 0.08);
+}
+
+.issue-card:hover {
+    background: rgba(137, 77, 39, 0.18);
+}
+
+.issue-key,
+.imported-story-item .story-key {
+    color: #e5a75f;
+    font-family: "Lato", sans-serif;
+    font-size: 0.72rem;
+}
+
+.issue-title,
+.imported-story-item .story-title {
+    color: rgba(255, 248, 234, 0.76);
+    font-family: "Lato", sans-serif;
+    font-size: 0.76rem;
+    line-height: 1.4;
+}
+
+.view-btn,
+.select-btn,
+.import-btn {
+    min-height: 1.9rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 0.5rem;
+    font-family: "Lato", sans-serif;
+    font-size: 0.65rem;
+    text-shadow: none;
+}
+
+.view-btn {
+    border-color: rgba(232, 177, 103, 0.4);
+    background: rgba(232, 177, 103, 0.1);
+    color: #efbc77;
+}
+
+.view-btn:hover {
+    background: rgba(232, 177, 103, 0.2);
+}
+
+.select-btn,
+.import-btn {
+    border-color: rgba(103, 181, 123, 0.42);
+    background: rgba(56, 124, 73, 0.2);
+    color: #a6d7b1;
+}
+
+.select-btn:hover,
+.import-btn:hover {
+    background: rgba(65, 148, 86, 0.34);
+    box-shadow: none;
+}
+
+.search-results::-webkit-scrollbar,
+.results-list::-webkit-scrollbar,
+.issues-list::-webkit-scrollbar {
+    width: 0.4rem;
+}
+
+.search-results::-webkit-scrollbar-thumb,
+.results-list::-webkit-scrollbar-thumb,
+.issues-list::-webkit-scrollbar-thumb {
+    border-radius: 999rem;
+    background: rgba(217, 153, 80, 0.36);
+}
 </style>

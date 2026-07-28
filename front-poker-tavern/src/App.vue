@@ -136,24 +136,37 @@ body {
 }
 
 .app-header {
-    background: linear-gradient(90deg, #8b4513 0%, #a0522d 50%, #8b4513 100%);
-    padding: 1rem 2rem;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    align-items: baseline;
+    min-height: 5.25rem;
+    padding: 1.15rem 2rem;
+    border-bottom: 1px solid rgba(232, 177, 103, 0.22);
+    background:
+        repeating-linear-gradient(176deg, rgba(255, 218, 160, 0.025) 0 0.08rem, transparent 0.08rem 0.48rem),
+        linear-gradient(90deg, #1d100a 0%, #4d2a17 50%, #1d100a 100%);
     text-align: center;
-    border-bottom: 3px solid #daa520;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0.75rem 2.5rem rgba(0, 0, 0, 0.36);
 }
 
 .app-header h1 {
-    font-size: 2.5rem;
-    color: #ffd700;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-    margin-bottom: 0.5rem;
+    margin: 0;
+    color: #fff1d7;
+    font-family: "Cinzel", serif;
+    font-size: clamp(1.25rem, 2vw, 1.65rem);
+    font-weight: 600;
+    text-shadow: 0 0.15rem 0.5rem rgba(0, 0, 0, 0.72);
 }
 
 .app-header p {
-    font-size: 1.1rem;
-    color: #f4f4f4;
-    font-style: italic;
+    color: rgba(255, 239, 213, 0.48);
+    font-family: "Lato", sans-serif;
+    font-size: 0.75rem;
+    font-style: normal;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
 }
 
 .app-main {

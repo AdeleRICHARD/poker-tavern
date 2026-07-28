@@ -140,4 +140,70 @@ defineEmits<{
         margin-bottom: 0.5rem;
     }
 }
+
+/* Modern tavern skin — card selection and submission stay unchanged */
+.poker-cards {
+    margin-bottom: 0;
+}
+
+.poker-cards h3 {
+    margin-bottom: 0.7rem;
+    color: #efbd78;
+    font-family: "Cinzel", serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.cards-grid {
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+}
+
+.poker-card {
+    min-height: 2.65rem;
+    border: 1px solid rgba(255, 236, 207, 0.16);
+    border-radius: 0.55rem;
+    background: linear-gradient(145deg, rgba(255, 247, 232, 0.92), rgba(211, 190, 161, 0.88));
+    color: #2b190f;
+    font-family: "Cinzel", serif;
+    font-size: 0.8rem;
+}
+
+.poker-card:hover:not(:disabled) {
+    border-color: #e1a65f;
+    box-shadow: 0 0.45rem 0.85rem rgba(177, 89, 35, 0.2);
+    transform: translateY(-0.08rem);
+}
+
+.poker-card.selected {
+    border-color: #f1c181;
+    background: linear-gradient(145deg, #d68a42, #a65327);
+    color: #fff8ea;
+}
+
+.poker-card:disabled {
+    opacity: 0.34;
+}
+
+.vote-btn,
+.vote-btn:disabled {
+    min-height: 2.8rem;
+    margin-top: 0;
+    border-radius: 0.7rem;
+    font-family: "Lato", sans-serif;
+    font-size: 0.76rem;
+}
+
+.vote-btn {
+    border-color: #d99955 !important;
+    background: linear-gradient(135deg, #d58a42, #a95629) !important;
+    color: #1b0e07;
+}
+
+.vote-btn:disabled {
+    border-color: rgba(255, 236, 207, 0.12) !important;
+    background: rgba(8, 5, 3, 0.38) !important;
+    color: rgba(255, 248, 234, 0.35);
+}
 </style>
