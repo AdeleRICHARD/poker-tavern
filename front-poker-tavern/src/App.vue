@@ -2,8 +2,8 @@
     <div id="app">
         <HealthChecker v-if="!isLoggedIn" />
         <header v-if="isLoggedIn" class="app-header">
-            <h1>🏰 Planning Poker Tavern</h1>
-            <p>Collaborative estimation for your development team</p>
+            <h1>🏰 La Taverne du Planning Poker</h1>
+            <p>Estimation collaborative pour votre équipe</p>
         </header>
 
         <main class="app-main">

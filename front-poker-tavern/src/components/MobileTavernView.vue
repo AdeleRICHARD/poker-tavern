@@ -9,7 +9,7 @@
                 >
                     🏰 {{ gameStore.currentSession.name }}
                 </span>
-                <span class="mobile-session-name" v-else>🏰 No Session</span>
+                <span class="mobile-session-name" v-else>🏰 Aucune session</span>
             </div>
             <div class="mobile-top-right">
                 <span
@@ -23,14 +23,14 @@
                     v-if="gameStore.currentSession"
                     @click="copySessionId"
                     class="mobile-share-btn"
-                    :title="showCopied ? 'Copied!' : 'Share link'"
+                    :title="showCopied ? 'Lien copié !' : 'Partager le lien'"
                 >
                     {{ showCopied ? "✅" : "🔗" }}
                 </button>
                 <button
                     class="mobile-logout-btn"
                     @click="handleLogout"
-                    title="Logout"
+                    title="Quitter la taverne"
                 >
                     🚪
                 </button>
@@ -51,14 +51,14 @@
                 :class="{ active: activeTab === 'vote' }"
                 @click="activeTab = 'vote'"
             >
-                🃏 Vote
+                🃏 Voter
             </button>
             <button
                 class="mobile-tab"
                 :class="{ active: activeTab === 'summary' }"
                 @click="activeTab = 'summary'"
             >
-                📊 Summary
+                📊 Récapitulatif
             </button>
         </div>
 
@@ -68,10 +68,9 @@
             <div v-if="activeTab === 'tickets'" class="mobile-tab-panel">
                 <!-- No session notice -->
                 <div v-if="!gameStore.currentSession" class="mobile-no-session">
-                    <h3>🏠 No Session</h3>
+                    <h3>🏠 Aucune session</h3>
                     <p>
-                        You need to be connected to a session to start
-                        estimating.
+                        Rejoignez une session pour commencer à estimer.
                     </p>
                 </div>
 
@@ -95,7 +94,7 @@
                     class="mobile-issues-section"
                 >
                     <h4>
-                        📋 Issues to Estimate ({{
+                        📋 Tickets à estimer ({{
                             gameStore.currentSession.stories.length
                         }})
                     </h4>
@@ -121,7 +120,7 @@
                                     <button
                                         class="mobile-view-btn"
                                         @click.stop="viewIssueDetails(story)"
-                                        title="View details"
+                                        title="Voir le détail"
                                     >
                                         👁️
                                     </button>
@@ -147,8 +146,8 @@
                     class="mobile-no-issues"
                 >
                     <p>
-                        📭 No tickets imported yet. Use JIRA Import above to add
-                        tickets.
+                        📭 Aucun ticket importé. Utilisez l’import Jira ci-dessus
+                        pour en ajouter.
                     </p>
                 </div>
             </div>
@@ -156,14 +155,14 @@
             <!-- VOTE TAB -->
             <div v-if="activeTab === 'vote'" class="mobile-tab-panel">
                 <div v-if="!gameStore.currentSession" class="mobile-no-session">
-                    <h3>🏠 No Session</h3>
-                    <p>Connect to a session first.</p>
+                    <h3>🏠 Aucune session</h3>
+                    <p>Rejoignez d’abord une session.</p>
                 </div>
 
                 <template v-else>
                     <!-- Character Selection -->
                     <div class="mobile-character-section">
-                        <h4>🎭 Choose your character</h4>
+                        <h4>🎭 Choisissez votre classe</h4>
                         <div class="mobile-character-grid">
                             <button
                                 v-for="character in gameStore.availableCharacters"
@@ -227,7 +226,7 @@
                                     viewIssueDetails(gameStore.currentStory)
                                 "
                             >
-                                👁️ View Details
+                                👁️ Voir le détail
                             </button>
                         </div>
                     </div>
@@ -250,8 +249,8 @@
                         >
                             {{
                                 !gameStore.canReveal
-                                    ? "⏳ Waiting for votes..."
-                                    : "🎭 Reveal All Votes"
+                                    ? "⏳ En attente des votes…"
+                                    : "🎭 Révéler tous les votes"
                             }}
                         </button>
                         <button
@@ -263,7 +262,7 @@
                             class="wow-button mobile-test-btn"
                             @click="makeOthersVote"
                         >
-                            🤖 Make others vote (test)
+                            🤖 Faire voter les autres (test)
                         </button>
                     </div>
                 </template>
@@ -272,8 +271,8 @@
             <!-- SUMMARY TAB -->
             <div v-if="activeTab === 'summary'" class="mobile-tab-panel">
                 <div v-if="!gameStore.currentSession" class="mobile-no-session">
-                    <h3>📊 No Data</h3>
-                    <p>Connect to a session to see the summary.</p>
+                    <h3>📊 Aucune donnée</h3>
+                    <p>Rejoignez une session pour voir le récapitulatif.</p>
                 </div>
 
                 <template v-else>
@@ -288,13 +287,13 @@
                             <span class="mobile-stat-value">{{
                                 getCompletedStoriesCount()
                             }}</span>
-                            <span class="mobile-stat-label">Done</span>
+                            <span class="mobile-stat-label">Terminés</span>
                         </div>
                         <div class="mobile-stat">
                             <span class="mobile-stat-value">{{
                                 getYourVotesCount()
                             }}</span>
-                            <span class="mobile-stat-label">Your Votes</span>
+                            <span class="mobile-stat-label">Vos votes</span>
                         </div>
                     </div>
 
@@ -349,7 +348,7 @@
                                     v-if="getStoryAverage(story.id)"
                                     class="mobile-story-avg"
                                 >
-                                    Average:
+                                    Moyenne :
                                     <strong>{{
                                         getStoryAverage(story.id)
                                     }}</strong>

@@ -8,11 +8,11 @@
             <!-- Left Sidebar: Session & Characters -->
             <div class="left-sidebar wow-panel">
                 <div class="panel-header">
-                    <h3>🎭 Role & Session</h3>
+                    <h3>🎭 Rôle et session</h3>
                     <button
                         class="logout-btn"
                         @click="handleLogout"
-                        title="Logout"
+                        title="Quitter la taverne"
                     >
                         🚪
                     </button>
@@ -44,23 +44,22 @@
                             :class="{ copied: showCopied }"
                             :title="
                                 showCopied
-                                    ? 'Copied invite link!'
-                                    : 'Copy invite link to share with team'
+                                    ? 'Lien d’invitation copié !'
+                                    : 'Copier le lien d’invitation'
                             "
                         >
                             {{ showCopied ? "✅" : "🔗" }}
                         </button>
                     </div>
                     <div class="invite-help" v-if="showCopied">
-                        <small>✨ Share this link with your team!</small>
+                        <small>✨ Partagez ce lien avec votre équipe !</small>
                     </div>
                 </div>
 
                 <div v-if="!gameStore.currentSession" class="no-session-notice">
-                    <h3>🏠 No Session</h3>
+                    <h3>🏠 Aucune session</h3>
                     <p>
-                        You need to be connected to a session to start
-                        estimating.
+                        Rejoignez une session pour commencer à estimer.
                     </p>
                 </div>
 
@@ -93,7 +92,7 @@
                     "
                     class="issues-section"
                 >
-                    <h4>📋 Issues to Estimate</h4>
+                    <h4>📋 Tickets à estimer</h4>
                     <div class="issues-list-left">
                         <div
                             v-for="(story, index) in gameStore.currentSession
@@ -120,7 +119,7 @@
                                 <button
                                     class="view-btn-mini"
                                     @click.stop="viewIssueDetails(story)"
-                                    title="View ticket details"
+                                    title="Voir le détail du ticket"
                                 >
                                     👁️
                                 </button>
@@ -155,14 +154,14 @@
                         @click="revealAllVotes"
                         :title="
                             !gameStore.canReveal
-                                ? 'All players must vote on ALL tickets before revealing'
-                                : 'Reveal all votes for the session'
+                                ? 'Tous les joueurs doivent voter sur tous les tickets avant la révélation'
+                                : 'Révéler tous les votes de la session'
                         "
                     >
                         {{
                             !gameStore.canReveal
-                                ? "⏳ Waiting for votes..."
-                                : "🎭 Reveal All Votes"
+                                ? "⏳ En attente des votes…"
+                                : "🎭 Révéler tous les votes"
                         }}
                     </button>
 
@@ -175,14 +174,14 @@
                         class="wow-button test-btn"
                         @click="makeOthersVote"
                     >
-                        🤖 Make others vote (test)
+                        🤖 Faire voter les autres (test)
                     </button>
 
                     <button
                         class="wow-button summary-btn"
                         @click="showSummaryModal = true"
                     >
-                        📊 View Summary
+                        📊 Voir le récapitulatif
                     </button>
                 </div>
             </div>
@@ -212,7 +211,7 @@
             <!-- Right Sidebar: JIRA Import Only -->
             <div class="right-sidebar wow-panel">
                 <div class="panel-header">
-                    <h3>🔍 JIRA Import</h3>
+                    <h3>🔍 Import Jira</h3>
                 </div>
 
                 <!-- JIRA Import -->
@@ -231,7 +230,7 @@
         >
             <div class="modal-content" @click.stop>
                 <div class="modal-header">
-                    <h2>📊 Voting Summary</h2>
+                    <h2>📊 Récapitulatif des votes</h2>
                     <button class="close-btn" @click="showSummaryModal = false">
                         ✕
                     </button>
@@ -240,19 +239,19 @@
                 <div class="modal-body">
                     <div class="summary-stats">
                         <div class="stat-item">
-                            <span class="stat-label">Total Stories:</span>
+                            <span class="stat-label">Total des tickets :</span>
                             <span class="stat-value">{{
                                 gameStore.currentSession?.stories.length || 0
                             }}</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-label">Completed:</span>
+                            <span class="stat-label">Terminés :</span>
                             <span class="stat-value">{{
                                 getCompletedStoriesCount()
                             }}</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-label">Your Progress:</span>
+                            <span class="stat-label">Votre progression :</span>
                             <span class="stat-value">{{
                                 getYourVotesCount()
                             }}</span>
@@ -315,7 +314,7 @@
                                     v-if="getStoryAverage(story.id)"
                                     class="story-average"
                                 >
-                                    Average:
+                                    Moyenne :
                                     <strong>{{
                                         getStoryAverage(story.id)
                                     }}</strong>
@@ -515,9 +514,9 @@ function makeOthersVote() {
 // Helper functions used in template
 function getPhaseText(phase: string): string {
     const phases = {
-        waiting: "⏳ Waiting",
-        voting: "🗳️ Voting in progress",
-        revealed: "🎭 Votes revealed",
+        waiting: "⏳ En attente",
+        voting: "🗳️ Vote en cours",
+        revealed: "🎭 Votes révélés",
     };
     return phases[phase as keyof typeof phases] || phase;
 }

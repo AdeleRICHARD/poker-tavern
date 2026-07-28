@@ -1,21 +1,21 @@
 <template>
     <div class="jira-import" v-if="gameStore.currentSession">
-        <h3>📋 JIRA Integration</h3>
+        <h3>📋 Intégration Jira</h3>
 
         <div class="jira-connect" v-if="!isConnected">
             <button @click="connectToJira" class="wow-button connect-btn">
-                🔗 Connect to JIRA
+                🔗 Se connecter à Jira
             </button>
             <p class="connect-info">
-                Connect your JIRA account to import tickets for estimation
+                Connectez votre compte Jira pour importer les tickets à estimer
             </p>
         </div>
 
         <div class="jira-connected" v-else>
             <div class="connected-status">
-                <span class="status-badge connected">✅ Connected to JIRA</span>
+                <span class="status-badge connected">✅ Connecté à Jira</span>
                 <button @click="disconnect" class="disconnect-btn">
-                    Disconnect
+                    Se déconnecter
                 </button>
             </div>
 
@@ -23,7 +23,7 @@
                 <input
                     v-model="searchQuery"
                     type="text"
-                    placeholder="Search JIRA issues..."
+                    placeholder="Rechercher des tickets Jira…"
                     class="search-input"
                     @keyup.enter="searchIssues"
                 />
@@ -32,7 +32,7 @@
                     class="wow-button search-btn"
                     :disabled="isLoading"
                 >
-                    {{ isLoading ? "Searching..." : "🔍 Search" }}
+                    {{ isLoading ? "Recherche…" : "🔍 Rechercher" }}
                 </button>
             </div>
 
@@ -42,7 +42,7 @@
 
             <!-- Search Results Section -->
             <div v-if="searchResults.length > 0" class="search-results">
-                <h4>🔍 Search Results</h4>
+                <h4>🔍 Résultats de recherche</h4>
                 <div class="results-list">
                     <div
                         v-for="issue in searchResults"
@@ -52,13 +52,13 @@
                         <div class="issue-title">{{ issue.title }}</div>
                         <div class="issue-actions">
                             <button @click="viewIssue(issue)" class="view-btn">
-                                View
+                                Voir
                             </button>
                             <button
                                 @click="importIssueDirectly(issue)"
                                 class="import-btn"
                             >
-                                Import
+                                Importer
                             </button>
                         </div>
                     </div>
@@ -71,7 +71,7 @@
             v-if="props.showIssuesOverview && importedIssues.length > 0"
             class="issues-overview"
         >
-            <h4>📋 Issues Overview</h4>
+            <h4>📋 Vue d’ensemble des tickets</h4>
             <div class="issues-list">
                 <div
                     v-for="issue in importedIssues"
@@ -84,13 +84,13 @@
                             <span
                                 v-if="issue.hasVoted"
                                 class="vote-status voted"
-                                title="You have voted"
+                                title="Vous avez voté"
                                 >✅</span
                             >
                             <span
                                 v-else
                                 class="vote-status not-voted"
-                                title="Not voted yet"
+                                title="Pas encore voté"
                                 >⭕</span
                             >
                         </div>
@@ -101,12 +101,12 @@
                         >
                             {{
                                 isSelectedForVoting(issue)
-                                    ? "Selected"
-                                    : "Select"
+                                    ? "Sélectionné"
+                                    : "Sélectionner"
                             }}
                         </button>
                         <button @click="viewIssue(issue)" class="view-btn">
-                            View
+                            Voir
                         </button>
                     </div>
                 </div>
@@ -227,7 +227,7 @@ async function searchIssues() {
         searchError.value =
             error instanceof Error
                 ? error.message
-                : "Search failed. Please try again.";
+                : "La recherche a échoué. Veuillez réessayer.";
     } finally {
         isLoading.value = false;
     }

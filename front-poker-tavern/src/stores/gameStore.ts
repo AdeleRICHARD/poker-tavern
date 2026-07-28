@@ -69,25 +69,25 @@ export const useGameStore = defineStore("game", () => {
   const availableCharacters = ref([
     { id: "mage", name: "Mage", emoji: "🧙‍♂️", class: "mage" },
     { id: "paladin", name: "Paladin", emoji: "⚔️", class: "paladin" },
-    { id: "rogue", name: "Rogue", emoji: "🗡️", class: "rogue" },
-    { id: "priest", name: "Priest", emoji: "✨", class: "priest" },
-    { id: "warrior", name: "Warrior", emoji: "🛡️", class: "warrior" },
-    { id: "hunter", name: "Hunter", emoji: "🏹", class: "hunter" },
-    { id: "warlock", name: "Warlock", emoji: "😈", class: "warlock" },
-    { id: "druid", name: "Druid", emoji: "🌿", class: "druid" },
+    { id: "rogue", name: "Voleur", emoji: "🗡️", class: "rogue" },
+    { id: "priest", name: "Prêtre", emoji: "✨", class: "priest" },
+    { id: "warrior", name: "Guerrier", emoji: "🛡️", class: "warrior" },
+    { id: "hunter", name: "Chasseur", emoji: "🏹", class: "hunter" },
+    { id: "warlock", name: "Démoniste", emoji: "😈", class: "warlock" },
+    { id: "druid", name: "Druide", emoji: "🌿", class: "druid" },
   ]);
 
   const pokerCards = ref([
-    { value: "0", label: "0", description: "Nothing to do" },
-    { value: "1", label: "1", description: "Very simple" },
+    { value: "0", label: "0", description: "Rien à faire" },
+    { value: "1", label: "1", description: "Très simple" },
     { value: "2", label: "2", description: "Simple" },
-    { value: "3", label: "3", description: "Medium" },
-    { value: "5", label: "5", description: "Complex" },
-    { value: "8", label: "8", description: "Very complex" },
-    { value: "13", label: "13", description: "Huge" },
-    { value: "21", label: "21", description: "Too big" },
-    { value: "?", label: "?", description: "No idea" },
-    { value: "☕", label: "☕", description: "Coffee break" },
+    { value: "3", label: "3", description: "Moyen" },
+    { value: "5", label: "5", description: "Complexe" },
+    { value: "8", label: "8", description: "Très complexe" },
+    { value: "13", label: "13", description: "Énorme" },
+    { value: "21", label: "21", description: "Trop gros" },
+    { value: "?", label: "?", description: "Aucune idée" },
+    { value: "☕", label: "☕", description: "Pause café" },
   ]);
 
   // Computed properties

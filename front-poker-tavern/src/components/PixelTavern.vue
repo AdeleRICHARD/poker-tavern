@@ -4,7 +4,7 @@
       <div class="floor-planks"></div>
       
       <div class="title-banner">
-        ⚔️ PLANNING POKER TAVERN ⚔️
+        ⚔️ LA TAVERNE DU PLANNING POKER ⚔️
       </div>
 
       <!-- Tavern Scene -->
@@ -91,7 +91,7 @@
         <div v-if="isRevealed" class="reveal-overlay">
           <div class="carousel-container" @click.stop>
             <div class="carousel-header">
-              <h2 class="reveal-title">🎉 Tavern Results</h2>
+              <h2 class="reveal-title">🎉 Résultats de la taverne</h2>
               <button class="close-overlay" @click="$emit('dismiss-reveal')">✕</button>
             </div>
 
@@ -113,8 +113,8 @@
                     <thead>
                       <tr>
                         <th>Participant</th>
-                        <th>Class</th>
-                        <th>Cost</th>
+                        <th>Classe</th>
+                        <th>Estimation</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -124,7 +124,7 @@
                           {{ player.name }}
                         </td>
                         <td class="class-cell">
-                          <span class="class-tag" :class="player.character">{{ player.character }}</span>
+                          <span class="class-tag" :class="player.character">{{ getCharacterName(player.character) }}</span>
                         </td>
                         <td class="vote-cell">
                           <div class="mini-card" :class="{ 'has-vote': getVoteForStory(player.id, currentStory?.id) }">
@@ -137,7 +137,7 @@
                 </div>
 
                 <div class="story-average-bar" v-if="getAverageForStory(currentStory?.id)">
-                  <span class="avg-label">Average Cost:</span>
+                  <span class="avg-label">Estimation moyenne :</span>
                   <span class="avg-value">{{ getAverageForStory(currentStory?.id) }}</span>
                 </div>
               </div>
@@ -213,6 +213,14 @@ function getCharacterEmoji(characterId: string) {
     warrior: '🛡️', hunter: '🏹', warlock: '😈', druid: '🌿'
   };
   return chars[characterId] || '👤';
+}
+
+function getCharacterName(characterId: string) {
+  const names: Record<string, string> = {
+    mage: 'Mage', paladin: 'Paladin', rogue: 'Voleur', priest: 'Prêtre',
+    warrior: 'Guerrier', hunter: 'Chasseur', warlock: 'Démoniste', druid: 'Druide'
+  };
+  return names[characterId] || characterId;
 }
 
 function getSeatStyle(index: number) {

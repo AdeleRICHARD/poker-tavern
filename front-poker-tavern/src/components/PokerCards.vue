@@ -1,6 +1,6 @@
 <template>
     <div class="poker-cards">
-        <h3>🃏 Your cards</h3>
+        <h3>🃏 Vos cartes</h3>
         <div class="cards-grid">
             <button
                 v-for="card in gameStore.pokerCards"
@@ -30,10 +30,10 @@
         >
             {{
                 !gameStore.currentPlayer
-                    ? "👤 Select character first"
+                    ? "👤 Choisissez d’abord une classe"
                     : gameStore.currentPlayer?.hasVoted
-                      ? "✅ Vote submitted"
-                      : "🗳️ Vote"
+                      ? "✅ Vote envoyé"
+                      : "🗳️ Voter"
             }}
         </button>
     </div>

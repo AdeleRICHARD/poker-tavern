@@ -6,7 +6,7 @@
                     <div class="quest-title-section">
                         <div class="quest-icon">📋</div>
                         <h2 class="quest-title">
-                            {{ issue?.title || "JIRA Issue" }}
+                            {{ issue?.title || "Ticket Jira" }}
                         </h2>
                     </div>
                     <button class="close-btn" @click="closeModal">✕</button>
@@ -15,19 +15,19 @@
                 <div class="quest-content">
                     <div class="quest-details">
                         <div class="detail-item">
-                            <strong>Issue Key:</strong> {{ issue?.jiraKey }}
+                            <strong>Clé du ticket :</strong> {{ issue?.jiraKey }}
                         </div>
                         <div class="detail-item" v-if="issue?.type">
-                            <strong>Type:</strong>
+                            <strong>Type :</strong>
                             <span class="issue-type-badge">{{
                                 issue.type
                             }}</span>
                         </div>
                         <div class="detail-item" v-if="issue?.priority">
-                            <strong>Priority:</strong> {{ issue.priority }}
+                            <strong>Priorité :</strong> {{ issue.priority }}
                         </div>
                         <div class="detail-item" v-if="issue?.status">
-                            <strong>Status:</strong> {{ issue.status }}
+                            <strong>Statut :</strong> {{ issue.status }}
                         </div>
                     </div>
 
@@ -35,7 +35,7 @@
                         class="quest-labels"
                         v-if="issue?.labels && issue.labels.length > 0"
                     >
-                        <h3>🏷️ Labels</h3>
+                        <h3>🏷️ Étiquettes</h3>
                         <div class="labels-container">
                             <span
                                 v-for="label in issue.labels"
@@ -56,7 +56,7 @@
                                 class="formatted-description"
                             ></div>
                             <p v-else class="no-description">
-                                No description available for this issue.
+                                Aucune description disponible pour ce ticket.
                             </p>
                         </div>
                     </div>
@@ -64,16 +64,16 @@
 
                 <div class="quest-actions" v-if="mode === 'import'">
                     <button class="decline-btn" @click="closeModal">
-                        <span>❌</span> Decline
+                        <span>❌</span> Refuser
                     </button>
                     <button class="accept-btn" @click="importIssue">
-                        <span>✅</span> Accept
+                        <span>✅</span> Accepter
                     </button>
                 </div>
 
                 <div class="quest-actions" v-else>
                     <button class="close-only-btn" @click="closeModal">
-                        <span>✖️</span> Close
+                        <span>✖️</span> Fermer
                     </button>
                 </div>
             </div>
